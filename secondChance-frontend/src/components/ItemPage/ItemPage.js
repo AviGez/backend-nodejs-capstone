@@ -11,6 +11,10 @@ function ItemPage() {
     const [zipcode, setZipcode] = useState('10110');
     const [age_days, setAge_days] = useState(0);
     const [description, setDescription] = useState('');
+    const [city, setCity] = useState('');
+    const [area, setArea] = useState('');
+    const [mapUrl, setMapUrl] = useState('');
+    const [price, setPrice] = useState(0);
     const [message, setMessage] = useState(null);
     const { isLoggedIn } = useAppContext();
 
@@ -21,11 +25,19 @@ function ItemPage() {
     });
 
     const handleAddItem = async () => {
+      const authToken = sessionStorage.getItem('auth-token');
+      if (!authToken) {
+        navigate('/app/login');
+        return;
+      }
 
       // Get the form data
       const formData = new FormData();
       const file = document.getElementById('file').files[0];
-      formData.append('file', file);
+      if (file) {
+        formData.append('file', file);
+        formData.append('image', `/images/${file.name}`);
+      }
       formData.append('name', document.getElementById('name').value);
       formData.append('category', category);
       formData.append('condition', condition);
@@ -34,14 +46,20 @@ function ItemPage() {
       formData.append('age_days', age_days);
       formData.append('age_years', (age_days/365).toFixed(2));
       formData.append('description', document.getElementById('description').value);
-      formData.append('image', `/images/${file.name}`);
       formData.append('comments', []);
+      formData.append('city', city);
+      formData.append('area', area);
+      formData.append('mapUrl', mapUrl);
+      formData.append('price', price);
 
           try {
             let url = `${urlConfig.backendUrl}/api/secondchance/items`;
             console.log(url);
               const response = await fetch(url, {
                 method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${authToken}`
+                },
                 body: formData
             });
     
@@ -133,6 +151,52 @@ function ItemPage() {
                           placeholder="Enter the  description"
                           value={description}
                           onChange={(e) => setDescription(e.target.value)}
+                      />
+                  </div>
+                  <div className="mb-3">
+                      <label htmlFor="price" className="form-label">Price (0 = Free)</label>
+                      <input
+                          id="price"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="form-control"
+                          placeholder="Enter the price"
+                          value={price}
+                          onChange={(e) => setPrice(e.target.value)}
+                      />
+                  </div>
+                  <div className="mb-3">
+                      <label htmlFor="city" className="form-label">City</label>
+                      <input
+                          id="city"
+                          type="text"
+                          className="form-control"
+                          placeholder="Enter the city"
+                          value={city}
+                          onChange={(e) => setCity(e.target.value)}
+                      />
+                  </div>
+                  <div className="mb-3">
+                      <label htmlFor="area" className="form-label">Area/Neighborhood</label>
+                      <input
+                          id="area"
+                          type="text"
+                          className="form-control"
+                          placeholder="Enter the area"
+                          value={area}
+                          onChange={(e) => setArea(e.target.value)}
+                      />
+                  </div>
+                  <div className="mb-3">
+                      <label htmlFor="mapUrl" className="form-label">Map Link (optional)</label>
+                      <input
+                          id="mapUrl"
+                          type="url"
+                          className="form-control"
+                          placeholder="https://maps.google.com/..."
+                          value={mapUrl}
+                          onChange={(e) => setMapUrl(e.target.value)}
                       />
                   </div>
                   <input style={{padding:'.5cm'}} type="file" id="file" name="file" accept=".jpg, .png, .gif"/>

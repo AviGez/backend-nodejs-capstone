@@ -11,6 +11,11 @@ import './App.css';
 import Navbar from './components/Navbar/Navbar';
 import Profile from './components/Profile/Profile';
 import { AppProvider } from './context/AppContext';
+import AdminPanel from './components/AdminPanel/AdminPanel';
+import Footer from './components/Footer/Footer';
+import MyReservations from './components/MyReservations/MyReservations';
+import PaymentSuccess from './components/PaymentStatus/PaymentSuccess';
+import PaymentCancel from './components/PaymentStatus/PaymentCancel';
 
 function App() {
 
@@ -26,7 +31,12 @@ function App() {
           <Route path="/app/login" element={<LoginPage/>} />
           <Route path="/app/register" element={<RegisterPage />} />
           <Route path="/app/addItem" element={<ItemPage />} />
+          <Route path="/app/admin" element={<AdminPanel />} />
+          <Route path="/app/reservations" element={<MyReservations />} />
+          <Route path="/app/payment-success" element={<PaymentSuccess />} />
+          <Route path="/app/payment-cancel" element={<PaymentCancel />} />
         </Routes>
+        <Footer />
         </AppProvider>
   );
 

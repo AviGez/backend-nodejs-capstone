@@ -3,11 +3,36 @@ const router = express.Router();
 const connectToDatabase = require('../models/db');
 require('dotenv').config();
 
+const releaseExpiredReservations = async (collection) => {
+    const now = new Date();
+    await collection.updateMany(
+        {
+            status: 'reserved',
+            reservedUntil: { $lt: now }
+        },
+        {
+            $set: {
+                status: 'available',
+                reservedByUserId: null,
+                reservedUntil: null
+            }
+        }
+    );
+};
+
+const buildSortOptions = (sortParam) => {
+    if (sortParam === 'rating_desc') {
+        return { averageRating: -1, ratingCount: -1 };
+    }
+    return {};
+};
+
 // Search for gifts
 router.get('/', async (req, res, next) => {
     try {
         const db = await connectToDatabase();
         const collection = db.collection(process.env.MONGO_COLLECTION);
+        await releaseExpiredReservations(collection);
         // Initialize the query object
         let query = {};
 
@@ -26,8 +51,19 @@ router.get('/', async (req, res, next) => {
         if (req.query.age_years) {
             query.age_years = { $lte: parseInt(req.query.age_years) };
         }
+        if (req.query.city && req.query.city.trim() !== '') {
+            query.city = req.query.city.trim();
+        }
+        if (req.query.area && req.query.area.trim() !== '') {
+            query.area = req.query.area.trim();
+        }
 
-        const gifts = await collection.find(query).toArray();
+        const sortOptions = buildSortOptions(req.query?.sort);
+        let cursor = collection.find(query);
+        if (Object.keys(sortOptions).length) {
+            cursor = cursor.sort(sortOptions);
+        }
+        const gifts = await cursor.toArray();
         res.json(gifts);
     } catch (e) {
         next(e);

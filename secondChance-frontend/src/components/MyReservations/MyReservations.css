@@ -1,0 +1,12 @@
+.my-reservations h2 {
+  font-weight: 600;
+}
+
+.my-reservations .card {
+  border-radius: 12px;
+}
+
+.my-reservations .card-title {
+  font-size: 1.1rem;
+}
+

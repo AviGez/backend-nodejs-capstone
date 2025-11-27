@@ -2,13 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import {urlConfig} from '../../config';
+import { useAppContext } from '../../context/AppContext';
+import { getStripe } from '../../utils/stripeClient';
 
 function SearchPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [ageRange, setAgeRange] = useState(6); // Initialize with minimum value
     const [searchResults, setSearchResults] = useState([]);
+    const [buyingId, setBuyingId] = useState(null);
+    const [paymentError, setPaymentError] = useState('');
     const categories = ['Living', 'Bedroom', 'Bathroom', 'Kitchen', 'Office'];
     const conditions = ['New', 'Like New', 'Older'];
+    const { isLoggedIn } = useAppContext();
 
     useEffect(() => {
         // fetch all products
@@ -57,7 +62,55 @@ function SearchPage() {
     const navigate = useNavigate();
 
     const goToDetailsPage = (productId) => {
-        navigate(`/app/product/${productId}`);
+        navigate(`/app/item/${productId}`);
+    };
+
+    const handleBuy = async (product) => {
+        if (!isLoggedIn) {
+            navigate('/app/login');
+            return;
+        }
+        if (!product || Number(product.price || 0) <= 0) {
+            return;
+        }
+        setPaymentError('');
+        setBuyingId(product.id);
+        const token = sessionStorage.getItem('auth-token');
+        try {
+            const response = await fetch(`${urlConfig.backendUrl}/api/payments/create-checkout-session`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ itemId: product.id }),
+            });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error || 'Unable to start checkout');
+            }
+            const data = await response.json();
+            if (data.sessionId) {
+                const stripe = await getStripe();
+                if (stripe) {
+                    const { error } = await stripe.redirectToCheckout({ sessionId: data.sessionId });
+                    if (error) {
+                        throw new Error(error.message);
+                    }
+                    return;
+                }
+            }
+            if (data.checkoutUrl) {
+                window.location.href = data.checkoutUrl;
+                return;
+            }
+            throw new Error('Unexpected Stripe response. Missing session URL.');
+        } catch (e) {
+            setPaymentError(e.message);
+            setTimeout(() => setPaymentError(''), 5000);
+        } finally {
+            setBuyingId(null);
+        }
     };
 
 
@@ -111,19 +164,43 @@ function SearchPage() {
                     />
                     <button className="btn btn-primary" onClick={handleSearch}>Search</button>
                     <div className="search-results mt-4">
+                        {paymentError && (
+                            <div className="alert alert-danger">{paymentError}</div>
+                        )}
                         {searchResults.length > 0 ? (
                             searchResults.map(product => (
                                 <div key={product.id} className="card mb-3">
                                     {/* Check if product has an image and display it */}
                                     <img src={urlConfig.backendUrl+product.image} alt={product.name} className="card-img-top" />
                                     <div className="card-body">
-                                        <h5 className="card-title">{product.name}</h5>
-                                        <p className="card-text">{product.description.slice(0, 100)}...</p>
+                                        <div className="d-flex justify-content-between align-items-center">
+                                            <h5 className="card-title">{product.name}</h5>
+                                            <span className={`badge ${product.status === 'sold' ? 'bg-secondary' : 'bg-success'}`}>
+                                                {product.status || 'available'}
+                                            </span>
+                                        </div>
+                                        <p className="card-text">{product.description ? `${product.description.slice(0, 100)}...` : 'No description provided'}</p>
+                                        <small className="text-highlight">
+                                            {product.status === 'sold'
+                                                ? 'Sold'
+                                                : product.price && Number(product.price) > 0
+                                                    ? `$${Number(product.price).toFixed(2)}`
+                                                    : 'Free'}
+                                        </small>
                                     </div>
-                                    <div className="card-footer">
+                                    <div className="card-footer d-flex flex-column gap-2">
                                         <button onClick={() => goToDetailsPage(product.id)} className="btn btn-primary">
                                             View More
                                         </button>
+                                        {(product.status || 'available') === 'available' && Number(product.price || 0) > 0 && (
+                                            <button
+                                                className="btn btn-modern-secondary"
+                                                onClick={() => handleBuy(product)}
+                                                disabled={buyingId === product.id}
+                                            >
+                                                {buyingId === product.id ? 'Redirecting…' : 'Buy now'}
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             ))

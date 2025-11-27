@@ -12,7 +12,7 @@ function RegisterPage() {
     const [password, setPassword] = useState('');
     const [showerr, setShowerr] = useState('');
     const navigate = useNavigate();
-    const { setIsLoggedIn } = useAppContext();
+    const { setIsLoggedIn, setUserName, setUserRole, setCurrentUserId } = useAppContext();
 
     const handleRegister = async () => {
         //api call
@@ -39,8 +39,13 @@ function RegisterPage() {
             sessionStorage.setItem('auth-token', json.authtoken);
             sessionStorage.setItem('name', firstName);
             sessionStorage.setItem('email', json.email);
+            sessionStorage.setItem('role', json.role || 'user');
+            sessionStorage.setItem('user-id', json.userId || '');
             navigate('/app');
             setIsLoggedIn(true);
+            setUserName(firstName);
+            setUserRole(json.role || 'user');
+            setCurrentUserId(json.userId || '');
         }
         if (json.error) {
             setShowerr(json.error);

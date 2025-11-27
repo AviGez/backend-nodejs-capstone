@@ -5,12 +5,23 @@ const connectToDatabase = require('../models/db');
 const router = express.Router();
 const dotenv = require('dotenv');
 const pino = require('pino');  // Import Pino logger
+const { authenticate } = require('../middleware/auth');
 
 //Task 1: Use the `body`,`validationResult` from `express-validator` for input validation
 const { body, validationResult } = require('express-validator');
 
 
 const logger = pino();  // Create a Pino logger instance
+
+const ALLOWED_ROLES = ['user', 'admin'];
+
+const normalizeRole = (incomingRole) => {
+    if (!incomingRole) {
+        return null;
+    }
+    const role = incomingRole.toLowerCase();
+    return ALLOWED_ROLES.includes(role) ? role : null;
+};
 
 dotenv.config();
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -27,6 +38,15 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ error: 'Email id already exists' });
         }
 
+        if (req.body.role && !normalizeRole(req.body.role)) {
+            logger.error(`Invalid role provided: ${req.body.role}`);
+            return res.status(400).json({ error: 'Invalid role specified. Allowed values: user, admin.' });
+        }
+
+        const userCount = await collection.countDocuments();
+        const normalizedRole = normalizeRole(req.body.role);
+        const role = userCount === 0 ? 'admin' : (normalizedRole || 'user');
+
         const salt = await bcryptjs.genSalt(10);
         const hash = await bcryptjs.hash(req.body.password, salt);
         const email=req.body.email;
@@ -36,18 +56,22 @@ router.post('/register', async (req, res) => {
             firstName: req.body.firstName,
             lastName: req.body.lastName,
             password: hash,
+            role,
             createdAt: new Date(),
         });
 
+        const userId = newUser.insertedId.toString();
+
         const payload = {
             user: {
-                id: newUser.insertedId,
+                id: userId,
+                role,
             },
         };
 
         const authtoken = jwt.sign(payload, JWT_SECRET);
         logger.info('User registered successfully');
-        res.json({ authtoken,email });
+        res.json({ authtoken,email, role, userId });
     } catch (e) {
         logger.error(e);
         return res.status(500).send('Internal server error');
@@ -64,6 +88,7 @@ router.post('/login', async (req, res) => {
         const theUser = await collection.findOne({ email: req.body.email });
 
         if (theUser) {
+            const userRole = theUser.role || 'user';
             let result = await bcryptjs.compare(req.body.password, theUser.password)
             if(!result) {
                 logger.error('Passwords do not match');
@@ -72,6 +97,7 @@ router.post('/login', async (req, res) => {
             let payload = {
                 user: {
                     id: theUser._id.toString(),
+                    role: userRole,
                 },
             };
 
@@ -79,8 +105,10 @@ router.post('/login', async (req, res) => {
             const userEmail = theUser.email;
 
             const authtoken = jwt.sign(payload, JWT_SECRET);
+            const userId = theUser._id.toString();
+
             logger.info('User logged in successfully');
-            return res.status(200).json({ authtoken, userName, userEmail });
+            return res.status(200).json({ authtoken, userName, userEmail, userRole, userId });
         } else {
             logger.error('User not found');
             return res.status(404).json({ error: 'User not found' });
@@ -92,7 +120,7 @@ router.post('/login', async (req, res) => {
 });
 
 // update API
-router.put('/update', async (req, res) => {
+router.put('/update', authenticate, async (req, res) => {
     // Task 2: Validate the input using `validationResult` and return approiate message if there is an error.
 
     const errors = validationResult(req);
@@ -104,11 +132,11 @@ router.put('/update', async (req, res) => {
     }
 
     try {
-        const email = req.headers.email;
+        const email = req.user?.email;
 
         if (!email) {
-            logger.error('Email not found in the request headers');
-            return res.status(400).json({ error: "Email not found in the request headers" });
+            logger.error('Email not found for the authenticated user');
+            return res.status(400).json({ error: "Email not found for the authenticated user" });
         }
 
         //Task 4: Connect to MongoDB
@@ -124,6 +152,7 @@ router.put('/update', async (req, res) => {
         }
 
         existingUser.firstName = req.body.name;
+        existingUser.role = existingUser.role || 'user';
         existingUser.updatedAt = new Date();
 
         //Task 6: Update user credentials in DB
@@ -134,16 +163,22 @@ router.put('/update', async (req, res) => {
         );
 
         //Task 7: Create JWT authentication with user._id as payload using secret key from .env file
+        if (!updatedUser.value) {
+            logger.error('User not found after update attempt');
+            return res.status(404).json({ error: "User not found" });
+        }
+
         const payload = {
             user: {
-                id: updatedUser._id.toString(),
+                id: updatedUser.value._id.toString(),
+                role: updatedUser.value.role || 'user',
             },
         };
 
         const authtoken = jwt.sign(payload, JWT_SECRET);
         logger.info('User updated successfully');
 
-        res.json({ authtoken });
+        res.json({ authtoken, role: payload.user.role });
     } catch (error) {
         logger.error(error);
         return res.status(500).send("Internal Server Error");

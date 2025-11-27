@@ -1,189 +1,460 @@
 
+:root {
+  --bg-base: #050915;
+  --bg-card: rgba(13, 29, 61, 0.8);
+  --bg-card-hover: rgba(24, 52, 99, 0.95);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --text-primary: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent: #14b8a6;
+  --accent-strong: #3b82f6;
+  --danger: #ef476f;
+  --success: #22c55e;
+  --card-radius: 20px;
+}
+
 html {
   overflow-y: scroll;
 }
-/* Primary color for headers and important buttons */
-.custom-card-title,
-.btn-primary {
-  background-color: #0056b3; /* Strong, confident blue */
-  color: white; /* For text on primary color background */
-}
 
-/* Secondary color for hover states and highlights */
-.btn-primary:hover,
-.btn-primary:focus {
-  background-color: #009688; /* Teal */
-}
-
-/* General background color */
 body,
-.page-background {
-  background-color: #f4f4f4; /* Light grey */
-  margin-right: calc(100vw - 100%);
+.app-shell {
+  background-color: var(--bg-base);
+  background-image:
+    radial-gradient(circle at 10% 20%, rgba(20, 184, 166, 0.15), transparent 45%),
+    radial-gradient(circle at 80% 0%, rgba(59, 130, 246, 0.12), transparent 55%),
+    radial-gradient(circle at 50% 80%, rgba(255, 255, 255, 0.08), transparent 60%);
+  min-height: 100vh;
+  color: var(--text-primary);
 }
 
-/* Background color for cards */
-.card {
-  background-color: #ffffff; /* White */
+.page-shell {
+  padding: 2rem min(6vw, 4rem);
 }
 
-/* Text color */
-.card-title,
-.card-text {
-  color: #333333; /* Darker grey */
+.hero-panel {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.25), rgba(59, 130, 246, 0.25));
+  border: 1px solid var(--glass-border);
+  border-radius: 32px;
+  padding: 2.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 20px 60px rgba(5, 9, 21, 0.45);
+  backdrop-filter: blur(16px);
 }
 
-/* Subtle accent color */
-.text-muted {
-  color: #6c757d; /* Muted grey */
+.hero-panel h1 {
+  font-size: clamp(2.4rem, 4vw, 3.4rem);
+  margin-bottom: 1rem;
 }
 
-/* Success color for messages or confirmation */
-.text-success,
-.btn-success {
-  color: #28a745; /* Fresh green */
+.hero-panel p {
+  max-width: 620px;
+  color: var(--text-muted);
+  font-size: 1rem;
 }
 
-.container {
-  padding: 2rem 15%; /* Adds more space on the sides */
+.hero-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1.5rem;
 }
 
-.row {
-  justify-content: space-around; /* Adds space between cards */
+.btn-primary-modern {
+  background: var(--accent);
+  color: #021526;
+  border: none;
+  border-radius: 999px;
+  padding: 0.85rem 1.75rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  box-shadow: 0 10px 30px rgba(20, 184, 166, 0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-primary-modern:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 35px rgba(20, 184, 166, 0.4);
+}
+
+.btn-ghost-modern {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 0.85rem 1.5rem;
+  font-weight: 500;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.btn-ghost-modern:hover {
+  border-color: rgba(255, 255, 255, 0.55);
+  color: #fff;
 }
 
 .product-card {
-  margin: 1rem 0; /* Adds space above and below each card */
-  border-radius: 10px; /* Rounded corners for card */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
-  overflow: hidden; /* Ensures nothing spills out of the card's rounded corners */
+  margin: 1.5rem 0;
+  border-radius: var(--card-radius);
+  border: 1px solid var(--glass-border);
+  background: var(--bg-card);
+  box-shadow: 0 25px 55px rgba(4, 6, 15, 0.55);
+  overflow: hidden;
+  transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.product-card:hover {
+  transform: translateY(-10px);
+  border-color: rgba(20, 184, 166, 0.45);
+  background: var(--bg-card-hover);
+  box-shadow: 0 35px 70px rgba(2, 4, 10, 0.65);
 }
 
 .image-placeholder {
   width: 100%;
-  height: 200px; /* Fixed height, adjust as needed */
-  position: relative; /* Set a reference for absolute positioned children */
-  border-top-left-radius: 0.25rem;
-  border-top-right-radius: 0.25rem;
+  height: 220px;
+  position: relative;
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .image-placeholder img {
-  position: absolute; /* Position it over the placeholder */
-  top: 0;
-  left: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover; /* Cover the area without stretching */
-  border-top-left-radius: 0.25rem;
-  border-top-right-radius: 0.25rem;
+  object-fit: cover;
 }
 
 .no-image-available {
   width: 100%;
-  height: 200px; /* Adjust based on your design */
-  background-color: #ddd; /* A neutral background color */
+  height: 220px;
+  background-color: rgba(148, 163, 184, 0.15);
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
-  color: #666;
   text-transform: uppercase;
-  border-top-left-radius: 0.25rem;
-  border-top-right-radius: 0.25rem;
+  letter-spacing: 0.2em;
 }
-
 
 .card-body {
-  padding: 1rem;
-  flex-grow: 1; /* Make body grow to fill space */
+  padding: 1.5rem;
   display: flex;
-  flex-direction: column; /* Stack elements vertically */
+  flex-direction: column;
+  gap: 0.75rem;
+  flex-grow: 1;
 }
 
-.date-added {
-  margin-top: auto; /* Pushes everything else to the top, and this to the bottom */
+.card-body h5 {
+  margin: 0;
+  font-weight: 600;
+}
+
+.card-body p {
+  margin: 0;
 }
 
 .card-footer {
-  padding: 0;
-  border-top: none;
+  border-top: 1px solid var(--glass-border);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
-.btn-primary {
-  display: block; /* Disables inline-block default of buttons */
-  width: 100%; /* Full width */
-  box-sizing: border-box; /* Includes padding and border in the width */
-}
-/* Highlight condition and age with color */
-.list-group-item-success {
-  color: #28a745; /* Green text color for new items */
-}
-
-.list-group-item-warning {
-  color: #ffc107; /* Yellow text color for older items */
+.status-pill {
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
-/* Customize the navbar brand and links */
-.navbar-brand, .nav-link {
-  font-size: 1.2rem; /* Increase font size */
-  font-weight: 500; /* Medium weight for better visibility */
+.status-available {
+  background: rgba(20, 184, 166, 0.15);
+  color: var(--accent);
 }
 
-/* Increase the font size and weight of nav-item */
-.nav-item .nav-link {
-  font-size: 1.1rem; /* Larger font size for nav links */
-  font-weight: bold; /* Bold font weight for emphasis */
-  color: #0056b3; /* Choose a color that stands out */
+.status-reserved {
+  background: rgba(253, 186, 116, 0.15);
+  color: #fb923c;
 }
 
-/* Change the background color of the navbar */
+.status-sold {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+}
+
+.location-chip {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+.glass-panel {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 1.5rem;
+  box-shadow: 0 20px 60px rgba(2, 6, 23, 0.6);
+  backdrop-filter: blur(16px);
+}
+
 .navbar {
-  background-color: #f8f9fa; /* A light color for contrast with the text */
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* A subtle shadow for depth */
+  background: rgba(10, 14, 26, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+  padding: 1rem 2rem !important;
 }
 
-/* Add a hover effect to nav links */
-.nav-item .nav-link:hover {
-  color: #004085; /* A darker shade for hover state */
-  text-decoration: none; /* Optional: Removes the underline on hover */
+.navbar-brand {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #f8fafc !important;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
 }
 
-/* Highlight the active nav link */
-.nav-item.active .nav-link, .nav-item .nav-link.active {
-  color: #d63384; /* A distinct color for the active page */
-  background-color: transparent; /* Optional: Adds a background color to the active link */
-  text-decoration: underline; /* Underlines the active link */
-  font-weight: bold; /* Makes the active link bold */
+.brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #14b8a6, #3b82f6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #050915;
+  font-weight: 700;
+  font-size: 1.1rem;
+  box-shadow: 0 10px 25px rgba(20, 184, 166, 0.35);
 }
 
-/* Style for login button */
-.nav-link.login-btn {
-  background-color: #28a745; /* A green color for login */
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 0.25rem;
-  transition: background-color 0.2s ease-in-out;
+.nav-link {
+  color: var(--text-muted) !important;
+  font-weight: 500;
+  transition: color 0.2s ease;
 }
 
-.nav-link.login-btn:hover,
-.nav-link.login-btn:focus {
-  background-color: #218838; /* A darker green on hover/focus for login */
-  color: white;
-  text-decoration: none;
+.nav-link:hover {
+  color: #fff !important;
 }
 
-/* Style for logout button */
-.nav-link.logout-btn {
-  background-color: #dc3545; /* A red color for logout */
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 0.25rem;
-  transition: background-color 0.2s ease-in-out;
+.nav-pills-modern {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
 }
 
-.nav-link.logout-btn:hover,
-.nav-link.logout-btn:focus {
-  background-color: #c82333; /* A darker red on hover/focus for logout */
-  color: white;
-  text-decoration: none;
+.nav-pill {
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.nav-pill:hover,
+.nav-pill-active {
+  background: rgba(59, 130, 246, 0.2);
+  color: #fff;
+}
+
+.nav-cta {
+  border-radius: 999px;
+  padding: 0.4rem 1.1rem;
+  font-weight: 600;
+}
+
+.chip-admin {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  margin-left: 0.45rem;
+}
+
+.rating-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.rating-summary strong {
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.btn-modern-secondary {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.9), rgba(99, 102, 241, 0.85));
+  border: none;
+  color: #fff;
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  font-weight: 600;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-modern-secondary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 30px rgba(59, 130, 246, 0.35);
+}
+
+.rating-stars {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+
+.rating-stars button {
+  background: none;
+  border: none;
+  color: #fcd34d;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  padding: 0;
+}
+
+.rating-stars button:hover,
+.rating-stars button.active {
+  transform: translateY(-2px) scale(1.1);
+}
+
+.rating-stars.read-only button {
+  cursor: default;
+  transform: none;
+}
+
+.alert {
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(15, 23, 42, 0.65);
+  color: var(--text-primary);
+}
+
+.form-control,
+.form-select {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  color: var(--text-primary);
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: rgba(59, 130, 246, 0.65);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.badge {
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+}
+
+.table {
+  color: var(--text-primary);
+}
+
+.table thead {
+  color: var(--text-muted);
+}
+
+.table tbody tr {
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.table tbody tr:hover {
+  background: rgba(15, 23, 42, 0.75);
+}
+
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.stat-card {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.stat-card span {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.stat-card strong {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.stat-card small {
+  color: var(--text-muted);
+}
+
+.chart-card {
+  padding: 1.5rem;
+}
+
+.status-list,
+.category-list,
+.recent-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.status-list li,
+.category-list li,
+.recent-list li,
+.monthly-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.bar-track {
+  flex: 1;
+  height: 10px;
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #14b8a6, #3b82f6);
+  border-radius: inherit;
+}
+
+.monthly-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.recent-list li {
+  padding: 0.45rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.recent-list li:last-child {
+  border-bottom: none;
 }

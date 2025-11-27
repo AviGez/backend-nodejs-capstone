@@ -11,7 +11,7 @@ function LoginPage() {
     const [incorrect, setIncorrect] = useState('');
     const navigate = useNavigate();
     const bearerToken = sessionStorage.getItem('bearer-token');
-    const { setIsLoggedIn } = useAppContext();
+    const { setIsLoggedIn, setUserName, setUserRole, setCurrentUserId } = useAppContext();
 
     useEffect(() => {
         if (sessionStorage.getItem('auth-token')) {
@@ -43,6 +43,9 @@ function LoginPage() {
 
           navigate('/app');
           setIsLoggedIn(true);
+          setUserName(json.userName || '');
+          setUserRole(json.userRole || 'user');
+          setCurrentUserId(json.userId || '');
         } else {
           document.getElementById("email").value="";
           document.getElementById("password").value="";
