@@ -35,7 +35,7 @@
 
 /* If you have specific styles for .details-title, keep them here */
 .details-title {
-    color: white;
+    color: inherit;
 }
 
 .seller-approvals {
@@ -51,10 +51,30 @@
     gap: 0.75rem;
     padding: 0.75rem 1rem;
     border-radius: 14px;
-    background: rgba(15, 23, 42, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: #f9fafb;
+    border: 1px solid rgba(15, 23, 42, 0.08);
 }
 
 .seller-approval-row small {
     font-size: 0.8rem;
+}
+
+.pickup-options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.pickup-option-card {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 14px;
+    padding: 0.9rem 1.1rem;
+    background: #f9fafb;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.pickup-option-card strong {
+    font-size: 1rem;
 }

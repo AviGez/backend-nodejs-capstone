@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:6
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+
+  backend:
+    build:
+      context: ./secondChance-backend
+    depends_on:
+      - mongo
+    environment:
+      NODE_ENV: production
+      PORT: 3060
+      MONGO_URL: mongodb://root:example@mongo:27017/secondChance?authSource=admin
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_PUBLIC_KEY: ${STRIPE_PUBLIC_KEY:-}
+      STRIPE_API_VERSION: ${STRIPE_API_VERSION:-2024-06-20}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:3000}
+      STRIPE_SUCCESS_URL: ${STRIPE_SUCCESS_URL:-http://localhost:3000/app/payment-success?session_id={CHECKOUT_SESSION_ID}}
+      STRIPE_CANCEL_URL: ${STRIPE_CANCEL_URL:-http://localhost:3000/app/payment-cancel}
+      PAYMENTS_MODE: ${PAYMENTS_MODE:-stripe}
+      SOCKET_ORIGIN: ${SOCKET_ORIGIN:-*}
+    ports:
+      - "3060:3060"
+
+  frontend:
+    build:
+      context: ./secondChance-frontend
+    depends_on:
+      - backend
+    environment:
+      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:3060}
+    ports:
+      - "3000:80"
+
+volumes:
+  mongo_data:
+

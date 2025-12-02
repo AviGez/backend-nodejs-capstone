@@ -3,6 +3,8 @@ const { ObjectId } = require('mongodb');
 const connectToDatabase = require('../models/db');
 const { authenticate, authorizeAdmin } = require('../middleware/auth');
 
+const { moderateText } = require('../services/aiModeration');
+
 const router = express.Router();
 
 let indexesEnsured = false;
@@ -188,6 +190,13 @@ router.post('/:chatId/messages', authenticate, async (req, res, next) => {
         const { content } = req.body;
         if (!content || typeof content !== 'string' || !content.trim()) {
             return res.status(400).json({ error: 'Message content is required' });
+        }
+        const moderation = await moderateText(content);
+        if (!moderation.allowed) {
+            return res.status(400).json({
+                error: 'Message blocked by moderation',
+                reasons: moderation.reasons || [],
+            });
         }
 
         const db = await connectToDatabase();

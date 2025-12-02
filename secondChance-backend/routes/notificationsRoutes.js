@@ -9,6 +9,7 @@ const NOTIFICATION_TYPES = {
     FEEDBACK: 'feedback',
     ITEM_RELEASED: 'itemReleased',
     NEW_ITEM_ADMIN: 'adminNewItem',
+    ITEM_SOLD: 'itemSold',
 };
 
 const normalizeType = (type) => {
@@ -201,6 +202,32 @@ const notificationService = {
             title: 'Reserved item released',
             message: `${itemName} is available again.`,
             context: { itemId },
+        });
+    },
+
+    async notifyItemSold({ sellerId, itemId, itemName, buyerId }) {
+        if (!sellerId) {
+            return;
+        }
+        await this.createNotification({
+            userIds: [sellerId],
+            type: NOTIFICATION_TYPES.ITEM_SOLD,
+            title: 'Your item was sold',
+            message: `${itemName} has been purchased. Open the chat to coordinate pickup.`,
+            context: { itemId, buyerId },
+        });
+    },
+
+    async notifyBadgeEarned({ userId, badgeId, label }) {
+        if (!userId || !badgeId) {
+            return;
+        }
+        await this.createNotification({
+            userIds: [userId],
+            type: 'badgeEarned',
+            title: 'Level up!',
+            message: `You earned the ${label} badge.`,
+            context: { badgeId, label },
         });
     },
 };

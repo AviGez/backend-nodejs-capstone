@@ -1,11 +1,65 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
+import { urlConfig } from '../../config';
 
 export default function Navbar() {
-    const { isLoggedIn, setIsLoggedIn, userName, setUserName, userRole, setUserRole, setCurrentUserId } = useAppContext();
+    const {
+        isLoggedIn,
+        setIsLoggedIn,
+        userName,
+        setUserName,
+        userRole,
+        setUserRole,
+        setCurrentUserId,
+        userStats,
+        setUserStats,
+    } = useAppContext();
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [showBadgePanel, setShowBadgePanel] = useState(false);
 
     const navigate = useNavigate();
+    const loadUnread = useCallback(async () => {
+        const token = sessionStorage.getItem('auth-token');
+        if (!token) {
+            setUnreadCount(0);
+            return;
+        }
+        try {
+            const response = await fetch(`${urlConfig.backendUrl}/api/notifications`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!response.ok) {
+                return;
+            }
+            const data = await response.json();
+            const unread = data.filter((notif) => !notif.readAt).length;
+            setUnreadCount(unread);
+        } catch (err) {
+            console.error(err);
+        }
+    }, []);
+
+    const fetchUserStats = useCallback(async () => {
+        const token = sessionStorage.getItem('auth-token');
+        if (!token) {
+            setUserStats(null);
+            return;
+        }
+        try {
+            const response = await fetch(`${urlConfig.backendUrl}/api/user-stats/me`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!response.ok) {
+                return;
+            }
+            const data = await response.json();
+            setUserStats(data);
+        } catch (err) {
+            console.error(err);
+        }
+    }, [setUserStats]);
+
     useEffect(() => {
         const authTokenFromSession = sessionStorage.getItem('auth-token');
         const nameFromSession = sessionStorage.getItem('name') || '';
@@ -24,6 +78,25 @@ export default function Navbar() {
             setCurrentUserId('');
         }
     }, [setIsLoggedIn, setUserName, setUserRole, setCurrentUserId]);
+
+    useEffect(() => {
+        const handler = () => {
+            loadUnread();
+            fetchUserStats();
+        };
+        window.addEventListener('notifications-updated', handler);
+        return () => window.removeEventListener('notifications-updated', handler);
+    }, [loadUnread, fetchUserStats]);
+
+    useEffect(() => {
+        if (isLoggedIn) {
+            loadUnread();
+            fetchUserStats();
+        } else {
+            setUnreadCount(0);
+            setUserStats(null);
+        }
+    }, [isLoggedIn, loadUnread, fetchUserStats, setUserStats]);
 
     const handleLogout = () => {
         sessionStorage.removeItem('auth-token');
@@ -56,7 +129,7 @@ export default function Navbar() {
                     <span className="navbar-toggler-icon"></span>
                 </button>
 
-                <div className="collapse navbar-collapse justify-content-end" id="navbarNav">
+                <div className="collapse navbar-collapse" id="navbarNav">
                     <ul className="navbar-nav align-items-lg-center gap-2">
                         <li className="nav-item">
                             <Link className="nav-link nav-pill" to="/app">Items</Link>
@@ -71,11 +144,34 @@ export default function Navbar() {
                                 </Link>
                             </li>
                         )}
+                        {isLoggedIn && (
+                            <li className="nav-item position-relative">
+                                <Link className="nav-link nav-pill nav-notification-link" to="/app/notifications">
+                                    Notifications
+                                    {unreadCount > 0 && (
+                                        <span className="nav-notification-dot">
+                                            {unreadCount > 9 ? '9+' : unreadCount}
+                                        </span>
+                                    )}
+                                </Link>
+                            </li>
+                        )}
                         {isLoggedIn && userRole === 'admin' && (
                             <li className="nav-item">
                                 <Link className="nav-link nav-pill nav-pill-active" to="/app/admin">
                                     Admin Panel
                                 </Link>
+                            </li>
+                        )}
+                        {isLoggedIn && userStats && (
+                            <li className="nav-item">
+                                <button
+                                    type="button"
+                                    className="btn btn-link nav-pill badge-pill"
+                                    onClick={() => setShowBadgePanel(true)}
+                                >
+                                    {userStats.sellerLevelLabel || 'Rookie Seller'}
+                                </button>
                             </li>
                         )}
                         {isLoggedIn ? (
@@ -105,6 +201,28 @@ export default function Navbar() {
                     </ul>
                 </div>
             </nav>
+            {showBadgePanel && (
+                <div className="badge-panel-backdrop" onClick={() => setShowBadgePanel(false)}>
+                    <div className="badge-panel" onClick={(e) => e.stopPropagation()}>
+                        <h4>Your badges</h4>
+                        <p className="text-muted mb-3">{userStats?.sellerLevelLabel}</p>
+                        {userStats?.badges?.length ? (
+                            <div className="badge-list">
+                                {userStats.badges.map((badge) => (
+                                    <span key={badge} className="badge-chip">
+                                        {badge.replace(/-/g, ' ')}
+                                    </span>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-muted">No badges yet. Keep sharing items to earn more.</p>
+                        )}
+                        <button className="btn btn-modern-secondary w-100 mt-3" onClick={() => setShowBadgePanel(false)}>
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
         </>
     );
 }

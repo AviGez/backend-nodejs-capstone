@@ -12,6 +12,10 @@ function MainPage() {
     const [errorMessage, setErrorMessage] = useState('');
     const [sortOption, setSortOption] = useState('');
     const [buyingItemId, setBuyingItemId] = useState(null);
+    const [personalItems, setPersonalItems] = useState([]);
+    const [personalError, setPersonalError] = useState('');
+    const [trendingItems, setTrendingItems] = useState([]);
+    const [trendingError, setTrendingError] = useState('');
     const navigate = useNavigate();
     const { isLoggedIn } = useAppContext();
 
@@ -40,7 +44,76 @@ function MainPage() {
         fetchItems();
     }, [fetchItems]);
 
+    const fetchPersonalRecommendations = useCallback(async () => {
+        if (!isLoggedIn) {
+            setPersonalItems([]);
+            setPersonalError('');
+            return;
+        }
+        const token = sessionStorage.getItem('auth-token');
+        if (!token) {
+            setPersonalItems([]);
+            return;
+        }
+        try {
+            const response = await fetch(`${urlConfig.backendUrl}/api/recommendations/personal`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error || 'Unable to load personal picks');
+            }
+            setPersonalItems(await response.json());
+            setPersonalError('');
+        } catch (err) {
+            setPersonalError(err.message);
+            setPersonalItems([]);
+        }
+    }, [isLoggedIn]);
+
+    const fetchTrending = useCallback(async () => {
+        try {
+            const response = await fetch(`${urlConfig.backendUrl}/api/recommendations/trending`);
+            if (!response.ok) {
+                throw new Error('Unable to load trending items');
+            }
+            setTrendingItems(await response.json());
+            setTrendingError('');
+        } catch (err) {
+            setTrendingError(err.message);
+            setTrendingItems([]);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchTrending();
+    }, [fetchTrending]);
+
+    useEffect(() => {
+        fetchPersonalRecommendations();
+    }, [fetchPersonalRecommendations]);
+
+    const recordInteraction = async (itemId, action = 'click') => {
+        try {
+            const token = sessionStorage.getItem('auth-token');
+            if (!token || !itemId) {
+                return;
+            }
+            await fetch(`${urlConfig.backendUrl}/api/recommendations/record`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ itemId, action }),
+            });
+        } catch (error) {
+            // ignore
+        }
+    };
+
     const goToDetailsPage = (itemId) => {
+        recordInteraction(itemId, 'click');
         navigate(`/app/item/${itemId}`);
     };
 
@@ -182,6 +255,75 @@ function MainPage() {
                 </div>
             </div>
             <NewArrivalsCarousel />
+            <div className="recommendation-section">
+                <div className="recommendation-header">
+                    <h2>For You</h2>
+                    {personalError && <small className="text-danger">{personalError}</small>}
+                </div>
+                {isLoggedIn ? (
+                    personalItems.length ? (
+                        <div className="recommendation-cards">
+                            {personalItems.map((item) => (
+                                <div key={`personal-${item.id}`} className="recommendation-card">
+                                    <div className="recommendation-card-image">
+                                        {item.image ? (
+                                            <img src={urlConfig.backendUrl + item.image} alt={item.name} />
+                                        ) : (
+                                            <div className="no-image-available">No Image</div>
+                                        )}
+                                    </div>
+                                    <div className="recommendation-card-body">
+                                        <h5>{item.name}</h5>
+                                        <p className="text-muted mb-1">{item.category}</p>
+                                        <strong>{item.price ? `$${Number(item.price).toFixed(2)}` : 'Free'}</strong>
+                                        <button
+                                            className="btn btn-modern-secondary btn-sm w-100 mt-2"
+                                            onClick={() => goToDetailsPage(item.id)}
+                                        >
+                                            View item
+                                        </button>
+                                        <small className="text-muted">
+                                            Because you like {item.category || 'similar finds'}
+                                        </small>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-muted">Tell us what you like by exploring the catalog, and we’ll tailor picks for you.</p>
+                    )
+                ) : (
+                    <p className="text-muted">Login to see personalized picks.</p>
+                )}
+            </div>
+            <div className="recommendation-section">
+                <div className="recommendation-header">
+                    <h2>What's hot now</h2>
+                    {trendingError && <small className="text-danger">{trendingError}</small>}
+                </div>
+                {trendingItems.length ? (
+                    <div className="trending-strip">
+                        {trendingItems.map((item) => (
+                            <div key={`trend-${item.id}`} className="trending-card" onClick={() => goToDetailsPage(item.id)}>
+                                <div className="trending-image">
+                                    {item.image ? (
+                                        <img src={urlConfig.backendUrl + item.image} alt={item.name} />
+                                    ) : (
+                                        <div className="no-image-available">No Image</div>
+                                    )}
+                                </div>
+                                <div className="mt-2">
+                                    <strong>{item.name}</strong>
+                                    <p className="mb-0 text-muted">{item.category}</p>
+                                    <small>🔥 {Math.max(item.ratingCount || 0, 1)} interested</small>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-muted">No trending items right now.</p>
+                )}
+            </div>
         <div className="container-fluid px-0">
             <div className="d-flex justify-content-between align-items-center mb-3">
                 {isLoggedIn ? (

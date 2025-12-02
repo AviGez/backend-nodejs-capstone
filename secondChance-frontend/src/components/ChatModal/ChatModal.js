@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import { urlConfig } from '../../config';
 import './ChatModal.css';
 
-const ChatModal = ({ chatId, itemName, onClose }) => {
+const ChatModal = ({ chatId, itemName, sellerLevelLabel, onClose }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [error, setError] = useState('');
@@ -101,7 +101,12 @@ const ChatModal = ({ chatId, itemName, onClose }) => {
     <div className="chat-modal-backdrop">
       <div className="chat-modal">
         <div className="chat-modal-header">
-          <h5>Chat · {itemName}</h5>
+          <div>
+            <h5>Chat · {itemName}</h5>
+            {sellerLevelLabel && (
+              <small className="text-muted d-block">{sellerLevelLabel}</small>
+            )}
+          </div>
           <button onClick={onClose} aria-label="Close chat">×</button>
         </div>
         {error && <div className="alert alert-danger mb-2">{error}</div>}

@@ -6,6 +6,8 @@ const connectToDatabase = require('../models/db');
 const logger = require('../logger');
 const { authenticate, authorizeAdmin } = require('../middleware/auth');
 const { notificationService } = require('./notificationsRoutes');
+const { recordItemListed, recordItemSold, finalizeBadges } = require('../services/userStats');
+const { moderateText } = require('../services/aiModeration');
 
 // Define the upload directory path
 const directoryPath = 'public/images';
@@ -69,9 +71,154 @@ const ensureApprovalsIndex = async (db) => {
     approvalsIndexEnsured = true;
 };
 
+const recordApprovalResponseHours = async (db, { itemId, buyerId, sellerId }) => {
+    if (!sellerId || !buyerId || !itemId) {
+        return;
+    }
+    const approvalsCollection = db.collection('itemApprovals');
+    const approval = await approvalsCollection.findOne({ itemId, buyerId, sellerId });
+    if (!approval || !approval.createdAt) {
+        return;
+    }
+    const createdAt = approval.createdAt instanceof Date ? approval.createdAt : new Date(approval.createdAt);
+    const hours = Math.max(0, (Date.now() - createdAt.getTime()) / (1000 * 60 * 60));
+    if (Number.isNaN(hours) || !Number.isFinite(hours)) {
+        return;
+    }
+    const { recordApprovalResponse, finalizeBadges } = require('../services/userStats');
+    await recordApprovalResponse({ sellerId, responseHours: hours });
+    await finalizeBadges(sellerId);
+};
+
 const getApprovalDoc = async (db, itemId, buyerId, sellerId) => {
     const approvalsCollection = db.collection('itemApprovals');
     return approvalsCollection.findOne({ itemId, buyerId, sellerId });
+};
+
+const MAX_PICKUP_LOCATIONS = 3;
+const MAX_LAT = 90;
+const MIN_LAT = -90;
+const MAX_LNG = 180;
+const MIN_LNG = -180;
+
+const parseCoordinate = (value, min, max) => {
+    if (typeof value === 'undefined' || value === null || value === '') {
+        return undefined;
+    }
+    const num = Number(value);
+    if (Number.isNaN(num) || !Number.isFinite(num)) {
+        return undefined;
+    }
+    if (num < min || num > max) {
+        return undefined;
+    }
+    return num;
+};
+
+const parseLatitude = (value) => parseCoordinate(value, MIN_LAT, MAX_LAT);
+const parseLongitude = (value) => parseCoordinate(value, MIN_LNG, MAX_LNG);
+
+const parsePickupLocationsInput = (input) => {
+    if (!input) {
+        return [];
+    }
+
+    let parsed = input;
+    if (typeof input === 'string') {
+        try {
+            parsed = JSON.parse(input);
+        } catch (e) {
+            return [];
+        }
+    }
+
+    if (!Array.isArray(parsed)) {
+        return [];
+    }
+
+    const cleaned = [];
+    for (const entry of parsed) {
+        if (!entry) {
+            continue;
+        }
+        const label = (entry.label || '').toString().trim();
+        const city = (entry.city || '').toString().trim();
+        const address = (entry.address || '').toString().trim();
+        if (!label || !city || !address) {
+            continue;
+        }
+        const location = {
+            label,
+            city,
+            area: (entry.area || '').toString().trim(),
+            address,
+        };
+        const lat = Number(entry.lat);
+        const lng = Number(entry.lng);
+        if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+            location.lat = lat;
+            location.lng = lng;
+        }
+        cleaned.push(location);
+        if (cleaned.length >= MAX_PICKUP_LOCATIONS) {
+            break;
+        }
+    }
+    return cleaned;
+};
+
+const sanitizePickupLocations = (locations = [], canViewFullDetails = false) => {
+    return locations.slice(0, MAX_PICKUP_LOCATIONS).map((loc) => {
+        const sanitized = {
+            label: loc.label,
+            city: loc.city,
+            area: loc.area,
+        };
+        if (canViewFullDetails) {
+            sanitized.address = loc.address;
+            if (typeof loc.lat === 'number') {
+                sanitized.lat = loc.lat;
+            }
+            if (typeof loc.lng === 'number') {
+                sanitized.lng = loc.lng;
+            }
+        }
+        return sanitized;
+    });
+};
+
+const toRadians = (deg) => (deg * Math.PI) / 180;
+const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
+    const R = 6371;
+    const dLat = toRadians(lat2 - lat1);
+    const dLon = toRadians(lon2 - lon1);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRadians(lat1)) *
+            Math.cos(toRadians(lat2)) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+};
+
+const computeCityMatchScore = (location, buyerCity = '', buyerArea = '') => {
+    let score = 0;
+    if (
+        buyerCity &&
+        location.city &&
+        location.city.toLowerCase() === buyerCity.toLowerCase()
+    ) {
+        score += 2;
+    }
+    if (
+        buyerArea &&
+        location.area &&
+        location.area.toLowerCase() === buyerArea.toLowerCase()
+    ) {
+        score += 1;
+    }
+    return score;
 };
 
 const buildItemQuery = (params) => {
@@ -141,6 +288,25 @@ router.get('/reservations/me', authenticate, async (req, res, next) => {
             status: 'reserved',
             reservedByUserId: req.user.id
         }).toArray();
+
+        res.json(items);
+    } catch (e) {
+        next(e);
+    }
+});
+
+router.get('/mine', authenticate, async (req, res, next) => {
+    try {
+        const db = await connectToDatabase();
+        const collection = db.collection("secondChanceItems");
+        await releaseExpiredReservations(collection);
+
+        const items = await collection.find({
+            ownerId: req.user.id,
+        })
+            .sort({ date_added: -1 })
+            .limit(100)
+            .toArray();
 
         res.json(items);
     } catch (e) {
@@ -357,6 +523,15 @@ router.post('/', authenticate, upload.single('file'), async(req, res,next) => {
             secondChanceItem.id = '1';
         }
 
+        const descriptionInput = (req.body.description || '').toString();
+        const moderationResult = await moderateText(descriptionInput || req.body.name || '');
+        if (!moderationResult.allowed) {
+            return res.status(400).json({
+                error: 'Description blocked by moderation',
+                reasons: moderationResult.reasons || [],
+            });
+        }
+
         const date_added = Math.floor(new Date().getTime() / 1000);
         secondChanceItem.date_added = date_added;
         secondChanceItem.ownerId = req.user.id;
@@ -371,8 +546,22 @@ router.post('/', authenticate, upload.single('file'), async(req, res,next) => {
         secondChanceItem.area = req.body.area || '';
         secondChanceItem.mapUrl = req.body.mapUrl || '';
         secondChanceItem.price = Number(req.body.price) || 0;
+        const lat = parseLatitude(req.body.lat);
+        const lng = parseLongitude(req.body.lng);
+        if (typeof lat === 'number') {
+            secondChanceItem.lat = lat;
+        }
+        if (typeof lng === 'number') {
+            secondChanceItem.lng = lng;
+        }
+        secondChanceItem.description = descriptionInput;
+        secondChanceItem.pickupLocations = parsePickupLocationsInput(req.body.pickupLocations);
 
         const insertResult = await collection.insertOne(secondChanceItem);
+        recordItemListed({
+            userId: secondChanceItem.ownerId,
+            price: secondChanceItem.price,
+        }).then(() => finalizeBadges(secondChanceItem.ownerId)).catch((err) => logger.error('Failed to update stats', err));
         notificationService.notifyAdminsNewItem({
             itemId: secondChanceItem.id,
             itemName: secondChanceItem.name,
@@ -406,13 +595,37 @@ router.put('/:id', authenticate, async(req, res,next) => {
         secondChanceItem.category = req.body.category;
         secondChanceItem.condition = req.body.condition;
         secondChanceItem.age_days = req.body.age_days;
-        secondChanceItem.description = req.body.description;
+        if (typeof req.body.description === 'string') {
+            const moderationResult = await moderateText(req.body.description);
+            if (!moderationResult.allowed) {
+                return res.status(400).json({
+                    error: 'Description blocked by moderation',
+                    reasons: moderationResult.reasons || [],
+                });
+            }
+            secondChanceItem.description = req.body.description;
+        }
         secondChanceItem.age_years = Number((secondChanceItem.age_days/365).toFixed(1));
         secondChanceItem.city = req.body.city || secondChanceItem.city || '';
         secondChanceItem.area = req.body.area || secondChanceItem.area || '';
         secondChanceItem.mapUrl = req.body.mapUrl || secondChanceItem.mapUrl || '';
         if (typeof req.body.price !== 'undefined') {
             secondChanceItem.price = Number(req.body.price) || 0;
+        }
+        if (typeof req.body.lat !== 'undefined') {
+            const lat = parseLatitude(req.body.lat);
+            if (typeof lat === 'number') {
+                secondChanceItem.lat = lat;
+            }
+        }
+        if (typeof req.body.lng !== 'undefined') {
+            const lng = parseLongitude(req.body.lng);
+            if (typeof lng === 'number') {
+                secondChanceItem.lng = lng;
+            }
+        }
+        if (typeof req.body.pickupLocations !== 'undefined') {
+            secondChanceItem.pickupLocations = parsePickupLocationsInput(req.body.pickupLocations);
         }
         secondChanceItem.updatedAt = new Date();
 
@@ -539,6 +752,9 @@ router.post('/:id/approve-buyer', authenticate, async (req, res, next) => {
         }
 
         const approval = await approvalsCollection.findOne({ itemId, buyerId, sellerId });
+        recordApprovalResponseHours(db, { itemId, buyerId, sellerId }).catch((err) =>
+            logger.error('Failed to record approval response hours', err)
+        );
 
         res.json({
             approval,
@@ -635,7 +851,123 @@ router.get('/:id/secure', authenticate, async (req, res, next) => {
             }
         }
 
+        const canViewFullPickupLocations =
+            role === 'seller' || response.approvalStatus === APPROVAL_STATUSES.APPROVED;
+        response.pickupLocations = sanitizePickupLocations(
+            item.pickupLocations || [],
+            canViewFullPickupLocations
+        );
+
         res.json(response);
+    } catch (e) {
+        next(e);
+    }
+});
+
+router.get('/:id/pickup-options', authenticate, async (req, res, next) => {
+    try {
+        const { lat, lng, city: buyerCity = '', area: buyerArea = '' } = req.query || {};
+        const db = await connectToDatabase();
+        await ensureApprovalsIndex(db);
+        const itemsCollection = db.collection("secondChanceItems");
+        const approvalsCollection = db.collection('itemApprovals');
+
+        const itemId = req.params.id;
+        const item = await itemsCollection.findOne({ id: itemId });
+        if (!item) {
+            return res.status(404).json({ error: "Item not found" });
+        }
+
+        const pickupLocations = Array.isArray(item.pickupLocations) ? item.pickupLocations.slice(0, MAX_PICKUP_LOCATIONS) : [];
+        if (!pickupLocations.length) {
+            return res.json([]);
+        }
+
+        let canViewFullDetails = false;
+        if (item.ownerId === req.user.id) {
+            canViewFullDetails = true;
+        } else {
+            const approval = await approvalsCollection.findOne({
+                itemId,
+                buyerId: req.user.id,
+                status: APPROVAL_STATUSES.APPROVED,
+            });
+            if (approval) {
+                canViewFullDetails = true;
+            }
+        }
+
+        const hasCoordsQuery =
+            typeof lat !== 'undefined' &&
+            typeof lng !== 'undefined' &&
+            lat !== '' &&
+            lng !== '' &&
+            !Number.isNaN(parseFloat(lat)) &&
+            !Number.isNaN(parseFloat(lng));
+
+        const buyerLat = hasCoordsQuery ? parseFloat(lat) : null;
+        const buyerLng = hasCoordsQuery ? parseFloat(lng) : null;
+
+        const enriched = pickupLocations.map((loc) => {
+            let distanceKm = null;
+            if (
+                hasCoordsQuery &&
+                typeof loc.lat !== 'undefined' &&
+                typeof loc.lng !== 'undefined' &&
+                !Number.isNaN(Number(loc.lat)) &&
+                !Number.isNaN(Number(loc.lng))
+            ) {
+                distanceKm = haversineDistanceKm(
+                    buyerLat,
+                    buyerLng,
+                    Number(loc.lat),
+                    Number(loc.lng)
+                );
+            }
+            const cityScore = hasCoordsQuery ? null : computeCityMatchScore(loc, buyerCity, buyerArea);
+            return { location: loc, distanceKm, cityScore };
+        });
+
+        enriched.sort((a, b) => {
+            if (hasCoordsQuery) {
+                if (a.distanceKm == null && b.distanceKm == null) {
+                    return 0;
+                }
+                if (a.distanceKm == null) {
+                    return 1;
+                }
+                if (b.distanceKm == null) {
+                    return -1;
+                }
+                return a.distanceKm - b.distanceKm;
+            }
+            const scoreA = a.cityScore || 0;
+            const scoreB = b.cityScore || 0;
+            return scoreB - scoreA;
+        });
+
+        const result = enriched.slice(0, MAX_PICKUP_LOCATIONS).map(({ location, distanceKm }) => {
+            const base = {
+                label: location.label,
+                city: location.city,
+                area: location.area,
+            };
+            if (distanceKm != null) {
+                base.distanceKm = Number(distanceKm.toFixed(2));
+            }
+            if (canViewFullDetails) {
+                base.address = location.address;
+                if (typeof location.lat !== 'undefined') {
+                    base.lat = location.lat;
+                }
+                if (typeof location.lng !== 'undefined') {
+                    base.lng = location.lng;
+                }
+            }
+            return base;
+        });
+
+        res.json(result);
     } catch (e) {
         next(e);
     }

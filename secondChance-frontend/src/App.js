@@ -16,6 +16,7 @@ import Footer from './components/Footer/Footer';
 import MyReservations from './components/MyReservations/MyReservations';
 import PaymentSuccess from './components/PaymentStatus/PaymentSuccess';
 import PaymentCancel from './components/PaymentStatus/PaymentCancel';
+import NotificationsPage from './components/Notifications/NotificationsPage';
 
 function App() {
 
@@ -33,6 +34,7 @@ function App() {
           <Route path="/app/addItem" element={<ItemPage />} />
           <Route path="/app/admin" element={<AdminPanel />} />
           <Route path="/app/reservations" element={<MyReservations />} />
+          <Route path="/app/notifications" element={<NotificationsPage />} />
           <Route path="/app/payment-success" element={<PaymentSuccess />} />
           <Route path="/app/payment-cancel" element={<PaymentCancel />} />
         </Routes>

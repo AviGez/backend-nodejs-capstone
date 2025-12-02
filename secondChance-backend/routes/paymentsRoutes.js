@@ -1,7 +1,15 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const connectToDatabase = require('../models/db');
-const { getStripeClient, stripePublicKey, paypalConfig } = require('../config/payments');
+const {
+    getStripeClient,
+    stripePublicKey,
+    paypalConfig,
+    paymentsMode,
+    isDemoPayments,
+} = require('../config/payments');
+const { notificationService } = require('./notificationsRoutes');
+const { recordItemSold, finalizeBadges } = require('../services/userStats');
 
 const router = express.Router();
 
@@ -28,6 +36,24 @@ const requireStripe = () => {
         throw err;
     }
     return stripe;
+};
+
+const notifySellerOfSale = async ({ sellerId, item, buyerId }) => {
+    if (!sellerId || !item) {
+        return;
+    }
+    try {
+        await notificationService.notifyItemSold({
+            sellerId,
+            itemId: item.id,
+            itemName: item.name || 'Your item',
+            buyerId,
+        });
+        await recordItemSold({ sellerId });
+        await finalizeBadges(sellerId);
+    } catch (err) {
+        console.error('Failed to send sale notification', err);
+    }
 };
 
 const buildSuccessUrl = () =>
@@ -64,9 +90,9 @@ router.post('/create-checkout-session', authenticate, async (req, res) => {
             return res.status(400).json({ error: 'itemId is required' });
         }
 
-        const stripe = requireStripe();
         const db = await connectToDatabase();
         const itemsCollection = db.collection('secondChanceItems');
+        const demoSessionsCollection = db.collection('paymentSessions');
 
         const item = await itemsCollection.findOne({ id: itemId });
         if (!item) {
@@ -99,6 +125,27 @@ router.post('/create-checkout-session', authenticate, async (req, res) => {
             const normalizedImage = item.image.startsWith('/') ? item.image : `/${item.image}`;
             productData.images = [`${normalizedBase}${normalizedImage}`];
         }
+
+        if (isDemoPayments) {
+            const sessionId = `demo_${item.id}_${req.user.id}_${Date.now()}`;
+            await demoSessionsCollection.insertOne({
+                sessionId,
+                itemId: item.id,
+                buyerId: req.user.id,
+                sellerId: item.ownerId || null,
+                amount: numericPrice,
+                currency: STRIPE_CURRENCY,
+                createdAt: new Date(),
+            });
+            return res.json({
+                sessionId,
+                checkoutUrl: `${SUCCESS_BASE_URL}?session_id=${sessionId}`,
+                publishableKey: stripePublicKey,
+                mode: 'demo',
+            });
+        }
+
+        const stripe = requireStripe();
 
         const session = await stripe.checkout.sessions.create({
             mode: 'payment',
@@ -149,11 +196,11 @@ router.get('/verify-session', authenticate, async (req, res) => {
             return res.status(400).json({ error: 'session_id query param is required' });
         }
 
-        const stripe = requireStripe();
         const db = await connectToDatabase();
         await ensureOrderIndexes(db);
         const ordersCollection = db.collection('orders');
         const itemsCollection = db.collection('secondChanceItems');
+        const demoSessionsCollection = db.collection('paymentSessions');
 
         const cachedOrder = await ordersCollection.findOne({ providerSessionId: sessionId });
         if (cachedOrder) {
@@ -164,6 +211,75 @@ router.get('/verify-session', authenticate, async (req, res) => {
             });
         }
 
+        if (isDemoPayments) {
+            const demoSession = await demoSessionsCollection.findOne({ sessionId });
+            if (!demoSession) {
+                return res.status(404).json({ error: 'Demo checkout session not found' });
+            }
+            if (demoSession.buyerId !== req.user.id) {
+                return res.status(403).json({ error: 'You are not allowed to finalize this payment' });
+            }
+
+            const item = await itemsCollection.findOne({ id: demoSession.itemId });
+            if (!item) {
+                return res.status(404).json({ error: 'Item not found for session' });
+            }
+            if ((item.status || 'available') === 'sold' && item.soldToUserId && item.soldToUserId !== demoSession.buyerId) {
+                return res.status(400).json({ error: 'Item already sold to a different buyer' });
+            }
+
+            const soldDoc = await itemsCollection.findOneAndUpdate(
+                { id: demoSession.itemId },
+                {
+                    $set: {
+                        status: 'sold',
+                        soldAt: new Date(),
+                        soldToUserId: demoSession.buyerId,
+                        soldPrice: demoSession.amount,
+                        soldCurrency: demoSession.currency || STRIPE_CURRENCY,
+                    },
+                    $unset: {
+                        reservedByUserId: '',
+                        reservedUntil: '',
+                    },
+                },
+                { returnDocument: 'after' }
+            );
+
+            const orderDoc = {
+                itemId: demoSession.itemId,
+                buyerId: demoSession.buyerId,
+                sellerId: demoSession.sellerId || item.ownerId || null,
+                amount: demoSession.amount,
+                currency: demoSession.currency || STRIPE_CURRENCY,
+                paymentProvider: 'demo',
+                providerSessionId: sessionId,
+                providerPaymentIntentId: null,
+                receiptEmail: req.user.email,
+                paymentStatus: 'paid',
+                createdAt: new Date(),
+            };
+
+            await ordersCollection.updateOne(
+                { providerSessionId: sessionId },
+                { $setOnInsert: orderDoc },
+                { upsert: true }
+            );
+            const savedOrder = await ordersCollection.findOne({ providerSessionId: sessionId });
+            await demoSessionsCollection.deleteOne({ sessionId });
+            await notifySellerOfSale({
+                sellerId: orderDoc.sellerId,
+                item: soldDoc.value || item,
+                buyerId: demoSession.buyerId,
+            });
+
+            return res.json({
+                order: mapOrderResponse(savedOrder),
+                item: soldDoc.value || item,
+            });
+        }
+
+        const stripe = requireStripe();
         const session = await stripe.checkout.sessions.retrieve(sessionId, {
             expand: ['payment_intent'],
         });
@@ -238,6 +354,11 @@ router.get('/verify-session', authenticate, async (req, res) => {
             { upsert: true }
         );
         const savedOrder = await ordersCollection.findOne({ providerSessionId: session.id });
+        await notifySellerOfSale({
+            sellerId: orderDoc.sellerId,
+            item: soldDoc.value || item,
+            buyerId,
+        });
 
         return res.json({
             order: mapOrderResponse(savedOrder),

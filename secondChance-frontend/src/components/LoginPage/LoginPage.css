@@ -1,23 +1,49 @@
 .login-card {
-    background-color: #fff;
-    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+    background-color: #ffffff;
+    color: #0f172a;
+    box-shadow: 0 18px 40px rgba(2, 6, 23, 0.18);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 20px;
+}
+
+.login-card h2,
+.login-card p,
+.login-card label {
+    color: #0f172a;
 }
 
 .login-card .form-label {
     font-weight: 600;
+    margin-bottom: 0.35rem;
 }
 
-.login-card input {
-    border-radius: 0.25rem;
+.login-card input.form-control {
+    border-radius: 0.65rem;
+    border: 1px solid #cbd5f5;
+    background: #f8fbff;
+    color: #0f172a;
+    padding: 0.75rem 0.9rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.login-card input.form-control:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    background: #ffffff;
+}
+
+.login-card input::placeholder {
+    color: #6c7b9b;
 }
 
 .login-card .btn {
-    padding: 0.5rem 1rem;
-    border-radius: 0.25rem;
+    padding: 0.7rem 1rem;
+    border-radius: 999px;
+    font-weight: 600;
 }
 
 .login-card .btn-primary {
-    background-color: #0056b3;
+    background: linear-gradient(120deg, #2563eb, #7c3aed);
     border: none;
 }
 
@@ -27,7 +53,7 @@
 }
 
 .login-card .text-primary {
-    color: #0056b3;
+    color: #2563eb;
 }
 
 .login-card .text-secondary {

@@ -14,6 +14,7 @@
   transition: transform 0.15s ease, opacity 0.15s ease;
   padding: 0;
   line-height: 1;
+  opacity: 0.35;
 }
 
 .rating-stars.read-only .rating-star {
@@ -22,10 +23,12 @@
 
 .rating-star.active {
   text-shadow: 0 0 10px rgba(252, 211, 77, 0.45);
+  opacity: 1;
 }
 
-.rating-star:hover:not(.read-only) {
+.rating-stars:not(.read-only) .rating-star:hover {
   transform: translateY(-2px) scale(1.05);
+  opacity: 1;
 }
 
 .rating-count {

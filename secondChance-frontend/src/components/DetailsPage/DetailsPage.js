@@ -22,6 +22,15 @@ function DetailsPage() {
     const [chatError, setChatError] = useState('');
     const [buying, setBuying] = useState(false);
     const [buyError, setBuyError] = useState('');
+    const [pickupOptions, setPickupOptions] = useState([]);
+    const [pickupLoading, setPickupLoading] = useState(false);
+    const [pickupError, setPickupError] = useState('');
+    const [locationMode, setLocationMode] = useState('city');
+    const [searchCity, setSearchCity] = useState('');
+    const [searchArea, setSearchArea] = useState('');
+    const [searchLat, setSearchLat] = useState('');
+    const [searchLng, setSearchLng] = useState('');
+    const [sellerStats, setSellerStats] = useState(null);
     const { isLoggedIn, currentUserId } = useAppContext();
 
     useEffect(() => {
@@ -55,6 +64,17 @@ function DetailsPage() {
     }, [itemId, isLoggedIn, navigate, currentUserId]);
 
     useEffect(() => {
+        if (gift) {
+            setSearchCity(gift.city || '');
+            setSearchArea(gift.area || '');
+            if (gift.ownerId) {
+                fetchSellerStats(gift.ownerId);
+            }
+            recordInteraction(gift.id, 'view');
+        }
+    }, [gift]);
+
+    useEffect(() => {
         const fetchSecure = async () => {
             if (!isLoggedIn) {
                 return;
@@ -82,6 +102,51 @@ function DetailsPage() {
 
         fetchSecure();
     }, [itemId, isLoggedIn]);
+
+    const recordInteraction = async (id, action = 'view') => {
+        try {
+            const token = sessionStorage.getItem('auth-token');
+            if (!token || !id) {
+                return;
+            }
+            await fetch(`${urlConfig.backendUrl}/api/recommendations/record`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ itemId: id, action }),
+            });
+        } catch (err) {
+            // ignore
+        }
+    };
+
+    const fetchSellerStats = async (ownerId) => {
+        try {
+            const token = sessionStorage.getItem('auth-token');
+            if (!token || !ownerId) {
+                return;
+            }
+            const response = await fetch(`${urlConfig.backendUrl}/api/user-stats/${ownerId}/public`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setSellerStats(data);
+            }
+        } catch (err) {
+            // ignore
+        }
+    };
+
+    useEffect(() => {
+        if (secureData?.pickupLocations && secureData.pickupLocations.length) {
+            setPickupOptions((prev) => (prev.length ? prev : secureData.pickupLocations));
+        }
+    }, [secureData]);
 
     const formatDate = (timestamp) => {
         if (!timestamp) return 'N/A';
@@ -260,6 +325,76 @@ function DetailsPage() {
         }
     };
 
+    const handlePickupSearch = async (e) => {
+        if (e) {
+            e.preventDefault();
+        }
+        try {
+            setPickupError('');
+            setPickupLoading(true);
+            const token = sessionStorage.getItem('auth-token');
+            if (!token) {
+                navigate('/app/login');
+                return;
+            }
+            const params = new URLSearchParams();
+            if (locationMode === 'coords') {
+                if (!searchLat || !searchLng) {
+                    throw new Error('Please provide latitude and longitude');
+                }
+                params.append('lat', searchLat);
+                params.append('lng', searchLng);
+            } else {
+                if (!searchCity) {
+                    throw new Error('Please provide a city to search');
+                }
+                params.append('city', searchCity);
+                if (searchArea) {
+                    params.append('area', searchArea);
+                }
+            }
+            const response = await fetch(
+                `${urlConfig.backendUrl}/api/secondchance/items/${itemId}/pickup-options?${params.toString()}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error || 'Unable to load pickup options');
+            }
+            const data = await response.json();
+            setPickupOptions(data);
+        } catch (err) {
+            setPickupError(err.message);
+        } finally {
+            setPickupLoading(false);
+        }
+    };
+
+    const handleUseCurrentLocation = () => {
+        setPickupError('');
+        if (!navigator.geolocation) {
+            setPickupError('Geolocation is not supported in this browser.');
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setLocationMode('coords');
+                setSearchLat(position.coords.latitude.toFixed(5));
+                setSearchLng(position.coords.longitude.toFixed(5));
+            },
+            (err) => {
+                setPickupError(err.message || 'Unable to fetch current location');
+            }
+        );
+    };
+
+    const canViewFullPickupDetails =
+        secureData?.role === 'seller' || secureData?.approvalStatus === 'approved';
+
     const renderBuyerPanel = () => {
         if (!secureData || secureData.role === 'seller') {
             return null;
@@ -382,6 +517,9 @@ function DetailsPage() {
                         )}
                         <p><strong>Date Added:</strong> {formatDate(gift.date_added)}</p>
                         <p><strong>Description:</strong> {gift.description}</p>
+                        {sellerStats?.sellerLevelLabel && (
+                            <p><strong>Seller level:</strong> {sellerStats.sellerLevelLabel}</p>
+                        )}
                     </div>
                     <div className="glass-panel" style={{ flex: '0 0 320px' }}>
                         <h4 className="mb-2">Community Rating</h4>
@@ -410,6 +548,135 @@ function DetailsPage() {
                     </div>
                 </div>
             </div>
+            {actionMessage && <div className="alert alert-info mt-3">{actionMessage}</div>}
+            {chatError && <div className="alert alert-danger mt-3">{chatError}</div>}
+            {renderBuyerPanel()}
+            {renderSellerPanel()}
+            <div className="glass-panel mt-4">
+                <h3 className="mb-3">Pickup options</h3>
+                <p className="text-muted">
+                    Share your location to find the closest pickup spot. Full address is shared once the seller approves you.
+                </p>
+                <form onSubmit={handlePickupSearch} className="mb-3">
+                    <div className="d-flex gap-3 flex-wrap mb-3">
+                        <div className="form-check">
+                            <input
+                                className="form-check-input"
+                                type="radio"
+                                name="pickupMode"
+                                id="pickupModeCity"
+                                value="city"
+                                checked={locationMode === 'city'}
+                                onChange={() => setLocationMode('city')}
+                            />
+                            <label className="form-check-label" htmlFor="pickupModeCity">
+                                City / area
+                            </label>
+                        </div>
+                        <div className="form-check">
+                            <input
+                                className="form-check-input"
+                                type="radio"
+                                name="pickupMode"
+                                id="pickupModeCoords"
+                                value="coords"
+                                checked={locationMode === 'coords'}
+                                onChange={() => setLocationMode('coords')}
+                            />
+                            <label className="form-check-label" htmlFor="pickupModeCoords">
+                                Coordinates
+                            </label>
+                        </div>
+                    </div>
+                    {locationMode === 'coords' ? (
+                        <div className="row g-3 mb-3">
+                            <div className="col-md-6">
+                                <label className="form-label">Latitude</label>
+                                <input
+                                    type="number"
+                                    step="0.000001"
+                                    className="form-control"
+                                    value={searchLat}
+                                    onChange={(e) => setSearchLat(e.target.value)}
+                                />
+                            </div>
+                            <div className="col-md-6">
+                                <label className="form-label">Longitude</label>
+                                <input
+                                    type="number"
+                                    step="0.000001"
+                                    className="form-control"
+                                    value={searchLng}
+                                    onChange={(e) => setSearchLng(e.target.value)}
+                                />
+                            </div>
+                            <div className="col-12">
+                                <button
+                                    type="button"
+                                    className="btn btn-outline-light btn-sm"
+                                    onClick={handleUseCurrentLocation}
+                                >
+                                    Use current location
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="row g-3 mb-3">
+                            <div className="col-md-6">
+                                <label className="form-label">City</label>
+                                <input
+                                    type="text"
+                                    className="form-control"
+                                    value={searchCity}
+                                    onChange={(e) => setSearchCity(e.target.value)}
+                                />
+                            </div>
+                            <div className="col-md-6">
+                                <label className="form-label">Area / neighborhood</label>
+                                <input
+                                    type="text"
+                                    className="form-control"
+                                    value={searchArea}
+                                    onChange={(e) => setSearchArea(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    )}
+                    <button type="submit" className="btn btn-modern-secondary">
+                        Find pickup options
+                    </button>
+                </form>
+                {pickupLoading && <p>Loading pickup options…</p>}
+                {pickupError && <div className="alert alert-danger">{pickupError}</div>}
+                {!pickupLoading && !pickupError && pickupOptions.length === 0 && (
+                    <p className="text-muted">No pickup locations available yet.</p>
+                )}
+                <div className="pickup-options-list">
+                    {pickupOptions.map((option, index) => (
+                        <div key={`${option.label}-${index}`} className="pickup-option-card">
+                            <div>
+                                <strong>{option.label}</strong>
+                                <p className="mb-1">
+                                    {option.city}
+                                    {option.area ? ` • ${option.area}` : ''}
+                                </p>
+                                {option.distanceKm && (
+                                    <small className="text-muted">{option.distanceKm} km away</small>
+                                )}
+                            </div>
+                            <div className="mt-2">
+                                {option.address && canViewFullPickupDetails ? (
+                                    <span>{option.address}</span>
+                                ) : (
+                                    <small className="text-muted">
+                                        Full address available after approval
+                                    </small>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
             <div className="glass-panel mt-4">
                 <h3 className="mb-3">Comments</h3>
                 {gift.comments && gift.comments.length > 0 ? (
@@ -423,10 +690,6 @@ function DetailsPage() {
                     <p className="text-muted">No comments yet.</p>
                 )}
             </div>
-            {actionMessage && <div className="alert alert-info mt-3">{actionMessage}</div>}
-            {chatError && <div className="alert alert-danger mt-3">{chatError}</div>}
-            {renderBuyerPanel()}
-            {renderSellerPanel()}
             {chatModal.open && (
                 <ChatModal
                     chatId={chatModal.chatId}

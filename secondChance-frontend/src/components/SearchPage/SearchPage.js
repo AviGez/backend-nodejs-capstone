@@ -9,6 +9,8 @@ function SearchPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [ageRange, setAgeRange] = useState(6); // Initialize with minimum value
     const [searchResults, setSearchResults] = useState([]);
+    const [searchCity, setSearchCity] = useState('');
+    const [searchArea, setSearchArea] = useState('');
     const [buyingId, setBuyingId] = useState(null);
     const [paymentError, setPaymentError] = useState('');
     const categories = ['Living', 'Bedroom', 'Bathroom', 'Kitchen', 'Office'];
@@ -40,12 +42,19 @@ function SearchPage() {
     const handleSearch = async () => {
         // Construct the search URL based on user input
         const baseUrl = `${urlConfig.backendUrl}/api/secondchance/search?`;
-        const queryParams = new URLSearchParams({
+        const params = new URLSearchParams({
             name: searchQuery,
             age_years: ageRange,
             category: document.getElementById('categorySelect').value,
             condition: document.getElementById('conditionSelect').value,
-        }).toString();
+        });
+        if (searchCity.trim()) {
+            params.append('city', searchCity.trim());
+        }
+        if (searchArea.trim()) {
+            params.append('area', searchArea.trim());
+        }
+        const queryParams = params.toString();
 
         try {
             const response = await fetch(`${baseUrl}${queryParams}`);
@@ -162,6 +171,26 @@ function SearchPage() {
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
                     />
+                    <div className="row g-2 mb-2">
+                        <div className="col-md-6">
+                            <input
+                                type="text"
+                                className="form-control"
+                                placeholder="City"
+                                value={searchCity}
+                                onChange={(e) => setSearchCity(e.target.value)}
+                            />
+                        </div>
+                        <div className="col-md-6">
+                            <input
+                                type="text"
+                                className="form-control"
+                                placeholder="Area / neighborhood"
+                                value={searchArea}
+                                onChange={(e) => setSearchArea(e.target.value)}
+                            />
+                        </div>
+                    </div>
                     <button className="btn btn-primary" onClick={handleSearch}>Search</button>
                     <div className="search-results mt-4">
                         {paymentError && (
