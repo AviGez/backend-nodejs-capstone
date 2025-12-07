@@ -14,6 +14,9 @@ const Profile = () => {
   const [reservations, setReservations] = useState([]);
   const [contentLoading, setContentLoading] = useState(true);
   const [contentError, setContentError] = useState('');
+  const [itemActionLoading, setItemActionLoading] = useState(null);
+  const [itemActionError, setItemActionError] = useState('');
+  const [itemActionSuccess, setItemActionSuccess] = useState('');
 
   const navigate = useNavigate();
 
@@ -156,6 +159,86 @@ const Profile = () => {
     navigate(`/app/item/${itemId}`);
   };
 
+  const handleUpdatePrice = async (item) => {
+    const authtoken = sessionStorage.getItem("auth-token");
+    if (!authtoken) {
+      navigate("/app/login");
+      return;
+    }
+    const currentPrice = Number(item.price || 0);
+    const input = window.prompt(
+      "Enter the new price for this item (0 to make it free):",
+      Number.isFinite(currentPrice) ? currentPrice.toString() : "0"
+    );
+    if (input === null) {
+      return;
+    }
+    const parsed = Number(input);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      window.alert("Price must be a number greater than or equal to 0.");
+      return;
+    }
+    try {
+      setItemActionLoading(item.id);
+      setItemActionError('');
+      setItemActionSuccess('price');
+      const response = await fetch(`${urlConfig.backendUrl}/api/secondchance/items/${item.id}`, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${authtoken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ price: parsed }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to update price');
+      }
+      await fetchUserContent(authtoken);
+      setItemActionSuccess('Price updated successfully.');
+      setTimeout(() => setItemActionSuccess(''), 2500);
+    } catch (error) {
+      setItemActionError(error.message || 'Unable to update price');
+    } finally {
+      setItemActionLoading(null);
+    }
+  };
+
+  const handleDeleteItem = async (item) => {
+    const authtoken = sessionStorage.getItem("auth-token");
+    if (!authtoken) {
+      navigate("/app/login");
+      return;
+    }
+    const confirmed = window.confirm("Are you sure you want to delete this item? This action cannot be undone.");
+    if (!confirmed) {
+      return;
+    }
+    try {
+      setItemActionLoading(item.id);
+      setItemActionError('');
+      setItemActionSuccess('delete');
+      const response = await fetch(`${urlConfig.backendUrl}/api/secondchance/items/${item.id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${authtoken}`,
+        },
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to delete item');
+      }
+      setUploadedItems((prev) => prev.filter((existing) => existing.id !== item.id));
+      await fetchUserContent(authtoken);
+      setItemActionSuccess('Item deleted successfully.');
+      setTimeout(() => setItemActionSuccess(''), 2500);
+    } catch (error) {
+      setItemActionError(error.message || 'Unable to delete item');
+    } finally {
+      setItemActionLoading(null);
+    }
+  };
+
   const renderItemCard = (item) => (
     <div key={item.id} className="profile-item-card">
       <div>
@@ -168,6 +251,20 @@ const Profile = () => {
           {item.price && Number(item.price) > 0 ? `$${Number(item.price).toFixed(2)}` : 'Free'}
         </span>
         <button className="btn btn-link" onClick={() => handleViewItem(item.id)}>View</button>
+        <button
+          className="btn btn-link text-primary"
+          disabled={itemActionLoading === item.id}
+          onClick={() => handleUpdatePrice(item)}
+        >
+          {itemActionLoading === item.id ? 'Saving...' : 'Edit price'}
+        </button>
+        <button
+          className="btn btn-link text-danger"
+          disabled={itemActionLoading === item.id}
+          onClick={() => handleDeleteItem(item)}
+        >
+          {itemActionLoading === item.id ? 'Deleting...' : 'Delete'}
+        </button>
       </div>
     </div>
   );
@@ -243,6 +340,12 @@ const Profile = () => {
               <div className="alert alert-danger">{contentError}</div>
             ) : (
               <>
+                {itemActionError && (
+                  <div className="alert alert-danger">{itemActionError}</div>
+                )}
+                {itemActionSuccess && (
+                  <div className="alert alert-success">{itemActionSuccess}</div>
+                )}
                 <section>
                   <h2>My Listings</h2>
                   {uploadedItems.length ? (

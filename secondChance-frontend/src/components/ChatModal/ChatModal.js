@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { urlConfig } from '../../config';
 import './ChatModal.css';
@@ -16,28 +16,34 @@ const ChatModal = ({ chatId, itemName, sellerLevelLabel, onClose }) => {
     Authorization: `Bearer ${sessionStorage.getItem('auth-token')}`,
   });
 
-  useEffect(() => {
-    const loadMessages = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(`${urlConfig.backendUrl}/api/chats/${chatId}/messages`, {
-          headers: authHeaders(),
-        });
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({}));
-          throw new Error(err.error || 'Unable to load chat messages');
-        }
-        const data = await response.json();
-        setMessages(data);
-      } catch (e) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
+  const loadMessages = useCallback(async () => {
+    try {
+      const response = await fetch(`${urlConfig.backendUrl}/api/chats/${chatId}/messages`, {
+        headers: authHeaders(),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Unable to load chat messages');
       }
-    };
-
-    loadMessages();
+      const data = await response.json();
+      setMessages(data);
+      setError('');
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   }, [chatId]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadMessages();
+  }, [loadMessages]);
+
+  useEffect(() => {
+    const interval = setInterval(loadMessages, 5000);
+    return () => clearInterval(interval);
+  }, [loadMessages]);
 
   useEffect(() => {
     const token = sessionStorage.getItem('auth-token');

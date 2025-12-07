@@ -10,6 +10,7 @@ const NOTIFICATION_TYPES = {
     ITEM_RELEASED: 'itemReleased',
     NEW_ITEM_ADMIN: 'adminNewItem',
     ITEM_SOLD: 'itemSold',
+    PICKUP_APPROVAL_REQUEST: 'pickupApprovalRequest',
 };
 
 const normalizeType = (type) => {
@@ -214,6 +215,19 @@ const notificationService = {
             type: NOTIFICATION_TYPES.ITEM_SOLD,
             title: 'Your item was sold',
             message: `${itemName} has been purchased. Open the chat to coordinate pickup.`,
+            context: { itemId, buyerId },
+        });
+    },
+
+    async notifyPickupApprovalRequest({ sellerId, itemId, itemName, buyerId }) {
+        if (!sellerId) {
+            return;
+        }
+        await this.createNotification({
+            userIds: [sellerId],
+            type: NOTIFICATION_TYPES.PICKUP_APPROVAL_REQUEST,
+            title: 'New pickup approval request',
+            message: `A buyer asked to pick up ${itemName || 'your item'}. Review the request in chat.`,
             context: { itemId, buyerId },
         });
     },

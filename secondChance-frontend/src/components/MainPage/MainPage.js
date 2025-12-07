@@ -2,118 +2,38 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {urlConfig} from '../../config';
 import { useAppContext } from '../../context/AppContext';
-import RatingStars from '../RatingStars/RatingStars';
 import NewArrivalsCarousel from '../NewArrivalsCarousel/NewArrivalsCarousel';
-import { getStripe } from '../../utils/stripeClient';
 
 function MainPage() {
     const [items, setItems] = useState([]);
     const [statusMessage, setStatusMessage] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
-    const [sortOption, setSortOption] = useState('');
-    const [buyingItemId, setBuyingItemId] = useState(null);
-    const [personalItems, setPersonalItems] = useState([]);
-    const [personalError, setPersonalError] = useState('');
-    const [trendingItems, setTrendingItems] = useState([]);
-    const [trendingError, setTrendingError] = useState('');
     const navigate = useNavigate();
     const { isLoggedIn } = useAppContext();
 
+    const filterAvailableItems = useCallback(
+        (list = []) => list.filter((item) => (item.status || 'available') === 'available'),
+        []
+    );
+
     const fetchItems = useCallback(async () => {
         try {
-            let url = `${urlConfig.backendUrl}/api/secondchance/items`;
-            const params = new URLSearchParams();
-            if (sortOption) {
-                params.append('sort', sortOption);
-            }
-            if (params.toString()) {
-                url += `?${params.toString()}`;
-            }
-            const response = await fetch(url);
+            const response = await fetch(`${urlConfig.backendUrl}/api/secondchance/items`);
             if (!response.ok) {
                 throw new Error(`HTTP error; ${response.status}`);
             }
             const data = await response.json();
-            setItems(data);
+            setItems(filterAvailableItems(data));
         } catch (error) {
             setErrorMessage(error.message);
         }
-    }, [sortOption]);
+    }, [filterAvailableItems]);
 
     useEffect(() => {
         fetchItems();
     }, [fetchItems]);
 
-    const fetchPersonalRecommendations = useCallback(async () => {
-        if (!isLoggedIn) {
-            setPersonalItems([]);
-            setPersonalError('');
-            return;
-        }
-        const token = sessionStorage.getItem('auth-token');
-        if (!token) {
-            setPersonalItems([]);
-            return;
-        }
-        try {
-            const response = await fetch(`${urlConfig.backendUrl}/api/recommendations/personal`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!response.ok) {
-                const err = await response.json().catch(() => ({}));
-                throw new Error(err.error || 'Unable to load personal picks');
-            }
-            setPersonalItems(await response.json());
-            setPersonalError('');
-        } catch (err) {
-            setPersonalError(err.message);
-            setPersonalItems([]);
-        }
-    }, [isLoggedIn]);
-
-    const fetchTrending = useCallback(async () => {
-        try {
-            const response = await fetch(`${urlConfig.backendUrl}/api/recommendations/trending`);
-            if (!response.ok) {
-                throw new Error('Unable to load trending items');
-            }
-            setTrendingItems(await response.json());
-            setTrendingError('');
-        } catch (err) {
-            setTrendingError(err.message);
-            setTrendingItems([]);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchTrending();
-    }, [fetchTrending]);
-
-    useEffect(() => {
-        fetchPersonalRecommendations();
-    }, [fetchPersonalRecommendations]);
-
-    const recordInteraction = async (itemId, action = 'click') => {
-        try {
-            const token = sessionStorage.getItem('auth-token');
-            if (!token || !itemId) {
-                return;
-            }
-            await fetch(`${urlConfig.backendUrl}/api/recommendations/record`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ itemId, action }),
-            });
-        } catch (error) {
-            // ignore
-        }
-    };
-
     const goToDetailsPage = (itemId) => {
-        recordInteraction(itemId, 'click');
         navigate(`/app/item/${itemId}`);
     };
 
@@ -143,7 +63,7 @@ function MainPage() {
 
             const updatedItem = await response.json();
             setItems((prevItems) =>
-                prevItems.map((item) => (item.id === updatedItem.id ? updatedItem : item))
+                filterAvailableItems(prevItems.map((item) => (item.id === updatedItem.id ? updatedItem : item)))
             );
             setStatusMessage(`Reserved ${updatedItem.name} until ${new Date(updatedItem.reservedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
             setErrorMessage('');
@@ -151,55 +71,6 @@ function MainPage() {
         } catch (error) {
             setErrorMessage(error.message);
             setTimeout(() => setErrorMessage(''), 4000);
-        }
-    };
-
-    const handleBuy = async (item) => {
-        if (!isLoggedIn) {
-            navigate('/app/login');
-            return;
-        }
-        if (!item?.price || Number(item.price) <= 0) {
-            setErrorMessage('This item is free. Reserve it instead.');
-            setTimeout(() => setErrorMessage(''), 4000);
-            return;
-        }
-        setBuyingItemId(item.id);
-        const token = sessionStorage.getItem('auth-token');
-        try {
-            const response = await fetch(`${urlConfig.backendUrl}/api/payments/create-checkout-session`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ itemId: item.id }),
-            });
-            if (!response.ok) {
-                const err = await response.json().catch(() => ({}));
-                throw new Error(err.error || 'Unable to start checkout');
-            }
-            const data = await response.json();
-            if (data.sessionId) {
-                const stripe = await getStripe();
-                if (stripe) {
-                    const { error } = await stripe.redirectToCheckout({ sessionId: data.sessionId });
-                    if (error) {
-                        throw new Error(error.message);
-                    }
-                    return;
-                }
-            }
-            if (data.checkoutUrl) {
-                window.location.href = data.checkoutUrl;
-                return;
-            }
-            throw new Error('Unexpected Stripe response. Missing session URL.');
-        } catch (err) {
-            setErrorMessage(err.message);
-            setTimeout(() => setErrorMessage(''), 5000);
-        } finally {
-            setBuyingItemId(null);
         }
     };
 
@@ -257,94 +128,11 @@ function MainPage() {
             <NewArrivalsCarousel />
             <div className="recommendation-section">
                 <div className="recommendation-header">
-                    <h2>For You</h2>
-                    {personalError && <small className="text-danger">{personalError}</small>}
+                    <h2>Featured picks</h2>
+                    <p className="text-muted mb-0">Browse what’s new and interesting right now.</p>
                 </div>
-                {isLoggedIn ? (
-                    personalItems.length ? (
-                        <div className="recommendation-cards">
-                            {personalItems.map((item) => (
-                                <div key={`personal-${item.id}`} className="recommendation-card">
-                                    <div className="recommendation-card-image">
-                                        {item.image ? (
-                                            <img src={urlConfig.backendUrl + item.image} alt={item.name} />
-                                        ) : (
-                                            <div className="no-image-available">No Image</div>
-                                        )}
-                                    </div>
-                                    <div className="recommendation-card-body">
-                                        <h5>{item.name}</h5>
-                                        <p className="text-muted mb-1">{item.category}</p>
-                                        <strong>{item.price ? `$${Number(item.price).toFixed(2)}` : 'Free'}</strong>
-                                        <button
-                                            className="btn btn-modern-secondary btn-sm w-100 mt-2"
-                                            onClick={() => goToDetailsPage(item.id)}
-                                        >
-                                            View item
-                                        </button>
-                                        <small className="text-muted">
-                                            Because you like {item.category || 'similar finds'}
-                                        </small>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <p className="text-muted">Tell us what you like by exploring the catalog, and we’ll tailor picks for you.</p>
-                    )
-                ) : (
-                    <p className="text-muted">Login to see personalized picks.</p>
-                )}
-            </div>
-            <div className="recommendation-section">
-                <div className="recommendation-header">
-                    <h2>What's hot now</h2>
-                    {trendingError && <small className="text-danger">{trendingError}</small>}
-                </div>
-                {trendingItems.length ? (
-                    <div className="trending-strip">
-                        {trendingItems.map((item) => (
-                            <div key={`trend-${item.id}`} className="trending-card" onClick={() => goToDetailsPage(item.id)}>
-                                <div className="trending-image">
-                                    {item.image ? (
-                                        <img src={urlConfig.backendUrl + item.image} alt={item.name} />
-                                    ) : (
-                                        <div className="no-image-available">No Image</div>
-                                    )}
-                                </div>
-                                <div className="mt-2">
-                                    <strong>{item.name}</strong>
-                                    <p className="mb-0 text-muted">{item.category}</p>
-                                    <small>🔥 {Math.max(item.ratingCount || 0, 1)} interested</small>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <p className="text-muted">No trending items right now.</p>
-                )}
             </div>
         <div className="container-fluid px-0">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-                {isLoggedIn ? (
-                    <button className="btn btn-outline-secondary" onClick={handleAddItem}>Add Item</button>
-                ) : (
-                    <div />
-                )}
-                <div className="d-flex align-items-center gap-2">
-                    <label htmlFor="sortSelect" className="me-2 mb-0">Sort:</label>
-                    <select
-                        id="sortSelect"
-                        className="form-select form-select-sm"
-                        value={sortOption}
-                        onChange={(e) => setSortOption(e.target.value)}
-                    >
-                        <option value="">Default</option>
-                        <option value="rating_desc">Top Rated</option>
-                    </select>
-                    <button className="btn btn-link" onClick={fetchItems}>Refresh</button>
-                </div>
-            </div>
             {statusMessage && <div className="alert alert-success">{statusMessage}</div>}
             {errorMessage && <div className="alert alert-danger">{errorMessage}</div>}
             <div className="row">
@@ -363,12 +151,6 @@ function MainPage() {
                                     <h5 className="card-title mb-0">{item.name}</h5>
                                     {renderStatus(item)}
                                 </div>
-                                <RatingStars
-                                    value={item.averageRating || 0}
-                                    count={item.ratingCount || 0}
-                                    readOnly
-                                    size="sm"
-                                />
                                 <div className="d-flex justify-content-between align-items-center mb-2">
                                     <p className={`card-text ${getConditionClass(item.condition)}`}>
                                     {item.condition}
@@ -397,13 +179,9 @@ function MainPage() {
                                     </button>
                                 )}
                                 {(item.status || 'available') === 'available' && Number(item.price || 0) > 0 && (
-                                    <button
-                                        onClick={() => handleBuy(item)}
-                                        className="btn btn-modern-secondary w-100"
-                                        disabled={buyingItemId === item.id}
-                                    >
-                                        {buyingItemId === item.id ? 'Redirecting…' : 'Buy now'}
-                                    </button>
+                                    <small className="text-muted d-block text-center">
+                                        Message the seller to arrange payment.
+                                    </small>
                                 )}
                                 {(item.status) === 'reserved' && (
                                     <small className="text-muted">Reserved until {item.reservedUntil ? new Date(item.reservedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</small>

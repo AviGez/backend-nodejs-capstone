@@ -2,9 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { urlConfig } from "../../config"
 import { useAppContext } from '../../context/AppContext';
-import RatingStars from '../RatingStars/RatingStars';
 import ChatModal from '../ChatModal/ChatModal';
-import { getStripe } from '../../utils/stripeClient';
 
 import './DetailsPage.css';
 
@@ -14,22 +12,11 @@ function DetailsPage() {
     const [gift, setGift] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [userRating, setUserRating] = useState(null);
-    const [ratingMessage, setRatingMessage] = useState('');
     const [secureData, setSecureData] = useState(null);
     const [actionMessage, setActionMessage] = useState('');
     const [chatModal, setChatModal] = useState({ open: false, chatId: null });
     const [chatError, setChatError] = useState('');
-    const [buying, setBuying] = useState(false);
-    const [buyError, setBuyError] = useState('');
-    const [pickupOptions, setPickupOptions] = useState([]);
-    const [pickupLoading, setPickupLoading] = useState(false);
-    const [pickupError, setPickupError] = useState('');
-    const [locationMode, setLocationMode] = useState('city');
-    const [searchCity, setSearchCity] = useState('');
-    const [searchArea, setSearchArea] = useState('');
-    const [searchLat, setSearchLat] = useState('');
-    const [searchLng, setSearchLng] = useState('');
+    const [pickupError] = useState('');
     const [sellerStats, setSellerStats] = useState(null);
     const { isLoggedIn, currentUserId } = useAppContext();
 
@@ -50,8 +37,6 @@ function DetailsPage() {
                 }
                 const data = await response.json();
                 setGift(data);
-                const existing = data?.ratings?.find((rating) => rating.userId === currentUserId);
-                setUserRating(existing?.value || null);
             } catch (error) {
                 setError(error.message);
             } finally {
@@ -64,13 +49,8 @@ function DetailsPage() {
     }, [itemId, isLoggedIn, navigate, currentUserId]);
 
     useEffect(() => {
-        if (gift) {
-            setSearchCity(gift.city || '');
-            setSearchArea(gift.area || '');
-            if (gift.ownerId) {
-                fetchSellerStats(gift.ownerId);
-            }
-            recordInteraction(gift.id, 'view');
+        if (gift && gift.ownerId) {
+            fetchSellerStats(gift.ownerId);
         }
     }, [gift]);
 
@@ -103,25 +83,6 @@ function DetailsPage() {
         fetchSecure();
     }, [itemId, isLoggedIn]);
 
-    const recordInteraction = async (id, action = 'view') => {
-        try {
-            const token = sessionStorage.getItem('auth-token');
-            if (!token || !id) {
-                return;
-            }
-            await fetch(`${urlConfig.backendUrl}/api/recommendations/record`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ itemId: id, action }),
-            });
-        } catch (err) {
-            // ignore
-        }
-    };
-
     const fetchSellerStats = async (ownerId) => {
         try {
             const token = sessionStorage.getItem('auth-token');
@@ -142,46 +103,10 @@ function DetailsPage() {
         }
     };
 
-    useEffect(() => {
-        if (secureData?.pickupLocations && secureData.pickupLocations.length) {
-            setPickupOptions((prev) => (prev.length ? prev : secureData.pickupLocations));
-        }
-    }, [secureData]);
-
     const formatDate = (timestamp) => {
         if (!timestamp) return 'N/A';
         const date = typeof timestamp === 'number' ? new Date(timestamp * 1000) : new Date(timestamp);
         return date.toLocaleString('default', { month: 'long', day: 'numeric', year: 'numeric' });
-    };
-
-    const handleRate = async (value) => {
-        if (!isLoggedIn) {
-            navigate('/app/login');
-            return;
-        }
-        try {
-            const token = sessionStorage.getItem('auth-token');
-            const response = await fetch(`${urlConfig.backendUrl}/api/secondchance/items/${gift.id}/rate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ value }),
-            });
-            if (!response.ok) {
-                const errJson = await response.json().catch(() => ({}));
-                throw new Error(errJson.error || 'Unable to submit rating');
-            }
-            const updated = await response.json();
-            setGift(updated);
-            setUserRating(value);
-            setRatingMessage('Thanks! Your rating was saved.');
-            setTimeout(() => setRatingMessage(''), 2500);
-        } catch (e) {
-            setRatingMessage(e.message);
-            setTimeout(() => setRatingMessage(''), 3000);
-        }
     };
 
     const handleBackClick = () => {
@@ -277,123 +202,51 @@ function DetailsPage() {
         }
     };
 
-    const handleBuyNow = async () => {
-        if (!gift || Number(gift.price || 0) <= 0) {
-            return;
-        }
-        if (!isLoggedIn) {
-            navigate('/app/login');
-            return;
-        }
-        setBuying(true);
-        setBuyError('');
-        const token = sessionStorage.getItem('auth-token');
-        try {
-            const response = await fetch(`${urlConfig.backendUrl}/api/payments/create-checkout-session`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ itemId: gift.id }),
-            });
-            if (!response.ok) {
-                const err = await response.json().catch(() => ({}));
-                throw new Error(err.error || 'Unable to start checkout');
-            }
-            const data = await response.json();
-            if (data.sessionId) {
-                const stripe = await getStripe();
-                if (stripe) {
-                    const { error } = await stripe.redirectToCheckout({ sessionId: data.sessionId });
-                    if (error) {
-                        throw new Error(error.message);
-                    }
-                    return;
-                }
-            }
-            if (data.checkoutUrl) {
-                window.location.href = data.checkoutUrl;
-                return;
-            }
-            throw new Error('Unexpected Stripe response. Missing session URL.');
-        } catch (e) {
-            setBuyError(e.message);
-            setTimeout(() => setBuyError(''), 6000);
-        } finally {
-            setBuying(false);
-        }
-    };
-
-    const handlePickupSearch = async (e) => {
-        if (e) {
-            e.preventDefault();
-        }
-        try {
-            setPickupError('');
-            setPickupLoading(true);
-            const token = sessionStorage.getItem('auth-token');
-            if (!token) {
-                navigate('/app/login');
-                return;
-            }
-            const params = new URLSearchParams();
-            if (locationMode === 'coords') {
-                if (!searchLat || !searchLng) {
-                    throw new Error('Please provide latitude and longitude');
-                }
-                params.append('lat', searchLat);
-                params.append('lng', searchLng);
-            } else {
-                if (!searchCity) {
-                    throw new Error('Please provide a city to search');
-                }
-                params.append('city', searchCity);
-                if (searchArea) {
-                    params.append('area', searchArea);
-                }
-            }
-            const response = await fetch(
-                `${urlConfig.backendUrl}/api/secondchance/items/${itemId}/pickup-options?${params.toString()}`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-            if (!response.ok) {
-                const err = await response.json().catch(() => ({}));
-                throw new Error(err.error || 'Unable to load pickup options');
-            }
-            const data = await response.json();
-            setPickupOptions(data);
-        } catch (err) {
-            setPickupError(err.message);
-        } finally {
-            setPickupLoading(false);
-        }
-    };
-
-    const handleUseCurrentLocation = () => {
-        setPickupError('');
-        if (!navigator.geolocation) {
-            setPickupError('Geolocation is not supported in this browser.');
-            return;
-        }
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                setLocationMode('coords');
-                setSearchLat(position.coords.latitude.toFixed(5));
-                setSearchLng(position.coords.longitude.toFixed(5));
-            },
-            (err) => {
-                setPickupError(err.message || 'Unable to fetch current location');
-            }
-        );
-    };
-
     const canViewFullPickupDetails =
         secureData?.role === 'seller' || secureData?.approvalStatus === 'approved';
+
+    const renderPickupLocation = () => {
+        const location = secureData?.pickupLocations?.[0];
+        if (!location && !(gift.city || gift.area || gift.mapUrl)) {
+            return null;
+        }
+        const showAddress = location && canViewFullPickupDetails;
+        return (
+            <div className="glass-panel mt-4">
+                <h3 className="mb-3">Pickup location</h3>
+                {location ? (
+                    <>
+                        <p><strong>Label:</strong> {location.label}</p>
+                        <p><strong>City:</strong> {location.city}</p>
+                        {location.area && <p><strong>Area:</strong> {location.area}</p>}
+                        {showAddress ? (
+                            <>
+                                <p><strong>Address:</strong> {location.address}</p>
+                                {typeof location.lat === 'number' && typeof location.lng === 'number' && (
+                                    <p><strong>Coordinates:</strong> {location.lat}, {location.lng}</p>
+                                )}
+                            </>
+                        ) : (
+                            <p className="text-muted">Full address unlocks once the seller approves you.</p>
+                        )}
+                    </>
+                ) : (
+                    <>
+                        {(gift.city || gift.area) && (
+                            <p>
+                                <strong>City:</strong> {gift.city || 'Unknown'}, {gift.area || 'Area not specified'}
+                            </p>
+                        )}
+                        {gift.mapUrl && (
+                            <a href={gift.mapUrl} target="_blank" rel="noopener noreferrer" className="btn btn-modern-secondary btn-sm">
+                                Open in Maps
+                            </a>
+                        )}
+                    </>
+                )}
+            </div>
+        );
+    };
 
     const renderBuyerPanel = () => {
         if (!secureData || secureData.role === 'seller') {
@@ -491,13 +344,11 @@ function DetailsPage() {
                         {gift.status === 'available' && Number(gift.price || 0) > 0 && (
                             <button
                                 className="btn btn-modern-secondary mt-2"
-                                onClick={handleBuyNow}
-                                disabled={buying}
+                                onClick={() => openChat()}
                             >
-                                {buying ? 'Redirecting…' : 'Buy now'}
+                                Message seller to buy
                             </button>
                         )}
-                        {buyError && <div className="alert alert-danger mt-3">{buyError}</div>}
                         <p><strong>Condition:</strong> {gift.condition}</p>
                         <p><strong>Status:</strong> {gift.status || 'available'}</p>
                         {gift.status === 'reserved' && gift.reservedUntil && (
@@ -521,175 +372,14 @@ function DetailsPage() {
                             <p><strong>Seller level:</strong> {sellerStats.sellerLevelLabel}</p>
                         )}
                     </div>
-                    <div className="glass-panel" style={{ flex: '0 0 320px' }}>
-                        <h4 className="mb-2">Community Rating</h4>
-                        <RatingStars
-                            value={gift.averageRating || 0}
-                            count={gift.ratingCount || 0}
-                            readOnly
-                            size="lg"
-                        />
-                        {isLoggedIn && (
-                            <div className="mt-3">
-                                <p className="text-muted mb-1">Tap to rate:</p>
-                                <RatingStars
-                                    value={userRating || 0}
-                                    count={0}
-                                    onRate={handleRate}
-                                    showCount={false}
-                                    size="lg"
-                                />
-                                {ratingMessage && <small className="text-info d-block mt-2">{ratingMessage}</small>}
-                            </div>
-                        )}
-                        {!isLoggedIn && (
-                            <p className="text-muted mt-3">Login to rate this item.</p>
-                        )}
-                    </div>
                 </div>
             </div>
             {actionMessage && <div className="alert alert-info mt-3">{actionMessage}</div>}
             {chatError && <div className="alert alert-danger mt-3">{chatError}</div>}
             {renderBuyerPanel()}
             {renderSellerPanel()}
-            <div className="glass-panel mt-4">
-                <h3 className="mb-3">Pickup options</h3>
-                <p className="text-muted">
-                    Share your location to find the closest pickup spot. Full address is shared once the seller approves you.
-                </p>
-                <form onSubmit={handlePickupSearch} className="mb-3">
-                    <div className="d-flex gap-3 flex-wrap mb-3">
-                        <div className="form-check">
-                            <input
-                                className="form-check-input"
-                                type="radio"
-                                name="pickupMode"
-                                id="pickupModeCity"
-                                value="city"
-                                checked={locationMode === 'city'}
-                                onChange={() => setLocationMode('city')}
-                            />
-                            <label className="form-check-label" htmlFor="pickupModeCity">
-                                City / area
-                            </label>
-                        </div>
-                        <div className="form-check">
-                            <input
-                                className="form-check-input"
-                                type="radio"
-                                name="pickupMode"
-                                id="pickupModeCoords"
-                                value="coords"
-                                checked={locationMode === 'coords'}
-                                onChange={() => setLocationMode('coords')}
-                            />
-                            <label className="form-check-label" htmlFor="pickupModeCoords">
-                                Coordinates
-                            </label>
-                        </div>
-                    </div>
-                    {locationMode === 'coords' ? (
-                        <div className="row g-3 mb-3">
-                            <div className="col-md-6">
-                                <label className="form-label">Latitude</label>
-                                <input
-                                    type="number"
-                                    step="0.000001"
-                                    className="form-control"
-                                    value={searchLat}
-                                    onChange={(e) => setSearchLat(e.target.value)}
-                                />
-                            </div>
-                            <div className="col-md-6">
-                                <label className="form-label">Longitude</label>
-                                <input
-                                    type="number"
-                                    step="0.000001"
-                                    className="form-control"
-                                    value={searchLng}
-                                    onChange={(e) => setSearchLng(e.target.value)}
-                                />
-                            </div>
-                            <div className="col-12">
-                                <button
-                                    type="button"
-                                    className="btn btn-outline-light btn-sm"
-                                    onClick={handleUseCurrentLocation}
-                                >
-                                    Use current location
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="row g-3 mb-3">
-                            <div className="col-md-6">
-                                <label className="form-label">City</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    value={searchCity}
-                                    onChange={(e) => setSearchCity(e.target.value)}
-                                />
-                            </div>
-                            <div className="col-md-6">
-                                <label className="form-label">Area / neighborhood</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    value={searchArea}
-                                    onChange={(e) => setSearchArea(e.target.value)}
-                                />
-                            </div>
-                        </div>
-                    )}
-                    <button type="submit" className="btn btn-modern-secondary">
-                        Find pickup options
-                    </button>
-                </form>
-                {pickupLoading && <p>Loading pickup options…</p>}
-                {pickupError && <div className="alert alert-danger">{pickupError}</div>}
-                {!pickupLoading && !pickupError && pickupOptions.length === 0 && (
-                    <p className="text-muted">No pickup locations available yet.</p>
-                )}
-                <div className="pickup-options-list">
-                    {pickupOptions.map((option, index) => (
-                        <div key={`${option.label}-${index}`} className="pickup-option-card">
-                            <div>
-                                <strong>{option.label}</strong>
-                                <p className="mb-1">
-                                    {option.city}
-                                    {option.area ? ` • ${option.area}` : ''}
-                                </p>
-                                {option.distanceKm && (
-                                    <small className="text-muted">{option.distanceKm} km away</small>
-                                )}
-                            </div>
-                            <div className="mt-2">
-                                {option.address && canViewFullPickupDetails ? (
-                                    <span>{option.address}</span>
-                                ) : (
-                                    <small className="text-muted">
-                                        Full address available after approval
-                                    </small>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-            <div className="glass-panel mt-4">
-                <h3 className="mb-3">Comments</h3>
-                {gift.comments && gift.comments.length > 0 ? (
-                    gift.comments.map((comment, index) => (
-                        <div key={index} className="glass-panel mb-3" style={{ background: 'rgba(15,23,42,0.55)' }}>
-                            <p className="comment-author"><strong>{comment.author}:</strong></p>
-                            <p className="comment-text">{comment.comment}</p>
-                        </div>
-                    ))
-                ) : (
-                    <p className="text-muted">No comments yet.</p>
-                )}
-            </div>
+            {pickupError && <div className="alert alert-danger">{pickupError}</div>}
+            {renderPickupLocation()}
             {chatModal.open && (
                 <ChatModal
                     chatId={chatModal.chatId}

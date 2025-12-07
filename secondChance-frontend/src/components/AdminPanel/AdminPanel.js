@@ -141,9 +141,9 @@ const AdminPanel = () => {
                   <small>{stats?.summaries?.pendingItems ?? 0} pending approvals</small>
                 </div>
                 <div className="stat-card glass-panel">
-                  <span>Community Ratings</span>
-                  <strong>{stats?.summaries?.averageRating?.toFixed(2) ?? '0.00'}</strong>
-                  <small>{stats?.summaries?.totalRatings ?? 0} total votes</small>
+                  <span>Sold Items</span>
+                  <strong>{stats?.summaries?.soldItems ?? 0}</strong>
+                  <small>Completed transactions so far</small>
                 </div>
               </div>
 

@@ -4,10 +4,10 @@
 
 .my-reservations .card {
   border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: 0 18px 35px rgba(2, 6, 23, 0.35);
-  background: rgba(15, 23, 42, 0.9);
-  color: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  box-shadow: 0 18px 35px rgba(2, 6, 23, 0.15);
+  background: #ffffff;
+  color: #0f172a;
 }
 
 .my-reservations .card-title {
@@ -18,63 +18,3 @@
   position: relative;
   overflow: hidden;
 }
-
-.route-select {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  background: rgba(15, 23, 42, 0.7);
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.route-planner-panel {
-  border-radius: 24px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  padding: 1.8rem;
-  background: rgba(4, 7, 16, 0.9);
-  box-shadow: 0 25px 60px rgba(2, 6, 23, 0.6);
-  color: #f8fafc;
-}
-
-.route-stop-list {
-  border: none;
-  gap: 0.75rem;
-}
-
-.route-stop {
-  display: flex;
-  gap: 1rem;
-  align-items: flex-start;
-  border-radius: 16px;
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(99, 102, 241, 0.2);
-}
-
-.route-stop-index {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: linear-gradient(145deg, #2563eb, #7c3aed);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.route-stop-title {
-  font-weight: 600;
-  color: #f8fafc;
-}
-
-.route-stop-meta,
-.route-stop-coords {
-  font-size: 0.9rem;
-}
-

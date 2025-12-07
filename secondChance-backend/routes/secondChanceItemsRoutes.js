@@ -7,7 +7,6 @@ const logger = require('../logger');
 const { authenticate, authorizeAdmin } = require('../middleware/auth');
 const { notificationService } = require('./notificationsRoutes');
 const { recordItemListed, recordItemSold, finalizeBadges } = require('../services/userStats');
-const { moderateText } = require('../services/aiModeration');
 
 // Define the upload directory path
 const directoryPath = 'public/images';
@@ -95,7 +94,7 @@ const getApprovalDoc = async (db, itemId, buyerId, sellerId) => {
     return approvalsCollection.findOne({ itemId, buyerId, sellerId });
 };
 
-const MAX_PICKUP_LOCATIONS = 3;
+const MAX_PICKUP_LOCATIONS = 1;
 const MAX_LAT = 90;
 const MIN_LAT = -90;
 const MAX_LNG = 180;
@@ -249,12 +248,7 @@ const buildItemQuery = (params) => {
     return query;
 };
 
-const buildSortOptions = (sortParam) => {
-    if (sortParam === 'rating_desc') {
-        return { averageRating: -1, ratingCount: -1 };
-    }
-    return {};
-};
+const buildSortOptions = () => ({});
 
 // Get all secondChanceItems
 router.get('/', async (req, res, next) => {
@@ -331,7 +325,6 @@ router.get('/admin/stats', authenticate, authorizeAdmin, async (req, res, next) 
             newUsersLast30Days,
             totalItems,
             statusAggregation,
-            ratingAggregation,
             topCategories,
             recentItems,
             monthlyItems
@@ -348,15 +341,6 @@ router.get('/admin/stats', authenticate, authorizeAdmin, async (req, res, next) 
                 }
             ]).toArray(),
             itemsCollection.aggregate([
-                {
-                    $group: {
-                        _id: null,
-                        avgRating: { $avg: { $ifNull: ['$averageRating', 0] } },
-                        totalRatings: { $sum: { $ifNull: ['$ratingCount', 0] } }
-                    }
-                }
-            ]).toArray(),
-            itemsCollection.aggregate([
                 { $group: { _id: '$category', count: { $sum: 1 } } },
                 { $sort: { count: -1 } },
                 { $limit: 5 }
@@ -369,7 +353,6 @@ router.get('/admin/stats', authenticate, authorizeAdmin, async (req, res, next) 
                         name: 1,
                         status: 1,
                         category: 1,
-                        averageRating: 1,
                         date_added: 1
                     }
                 }
@@ -400,8 +383,6 @@ router.get('/admin/stats', authenticate, authorizeAdmin, async (req, res, next) 
             return acc;
         }, { available: 0, reserved: 0, sold: 0, pending: 0 });
 
-        const ratingStats = ratingAggregation[0] || { avgRating: 0, totalRatings: 0 };
-
         res.json({
             summaries: {
                 totalUsers,
@@ -410,9 +391,7 @@ router.get('/admin/stats', authenticate, authorizeAdmin, async (req, res, next) 
                 availableItems: statusCounts.available || 0,
                 activeReservations: statusCounts.reserved || 0,
                 pendingItems: statusCounts.pending || 0,
-                soldItems: statusCounts.sold || 0,
-                averageRating: Number((ratingStats.avgRating || 0).toFixed(2)),
-                totalRatings: ratingStats.totalRatings || 0
+                soldItems: statusCounts.sold || 0
             },
             statusBreakdown: Object.entries(statusCounts).map(([status, count]) => ({
                 status,
@@ -431,7 +410,6 @@ router.get('/admin/stats', authenticate, authorizeAdmin, async (req, res, next) 
                 name: item.name,
                 status: item.status || 'available',
                 category: item.category || 'General',
-                averageRating: item.averageRating || 0,
                 dateAdded: item.date_added
             }))
         });
@@ -524,13 +502,6 @@ router.post('/', authenticate, upload.single('file'), async(req, res,next) => {
         }
 
         const descriptionInput = (req.body.description || '').toString();
-        const moderationResult = await moderateText(descriptionInput || req.body.name || '');
-        if (!moderationResult.allowed) {
-            return res.status(400).json({
-                error: 'Description blocked by moderation',
-                reasons: moderationResult.reasons || [],
-            });
-        }
 
         const date_added = Math.floor(new Date().getTime() / 1000);
         secondChanceItem.date_added = date_added;
@@ -539,9 +510,6 @@ router.post('/', authenticate, upload.single('file'), async(req, res,next) => {
         secondChanceItem.status = 'available';
         secondChanceItem.reservedByUserId = null;
         secondChanceItem.reservedUntil = null;
-        secondChanceItem.averageRating = 0;
-        secondChanceItem.ratingCount = 0;
-        secondChanceItem.ratings = [];
         secondChanceItem.city = req.body.city || '';
         secondChanceItem.area = req.body.area || '';
         secondChanceItem.mapUrl = req.body.mapUrl || '';
@@ -596,13 +564,6 @@ router.put('/:id', authenticate, async(req, res,next) => {
         secondChanceItem.condition = req.body.condition;
         secondChanceItem.age_days = req.body.age_days;
         if (typeof req.body.description === 'string') {
-            const moderationResult = await moderateText(req.body.description);
-            if (!moderationResult.allowed) {
-                return res.status(400).json({
-                    error: 'Description blocked by moderation',
-                    reasons: moderationResult.reasons || [],
-                });
-            }
             secondChanceItem.description = req.body.description;
         }
         secondChanceItem.age_years = Number((secondChanceItem.age_days/365).toFixed(1));
@@ -688,6 +649,12 @@ router.post('/:id/request-approval', authenticate, async (req, res, next) => {
 
         const insertResult = await approvalsCollection.insertOne(approval);
         const saved = await approvalsCollection.findOne({ _id: insertResult.insertedId });
+        notificationService.notifyPickupApprovalRequest({
+            sellerId,
+            buyerId,
+            itemId,
+            itemName: item.name,
+        }).catch((err) => logger.error('Failed to notify seller of pickup request', err));
         res.status(201).json(saved);
     } catch (e) {
         next(e);
@@ -1007,62 +974,6 @@ router.post('/:id/reserve', authenticate, async (req, res, next) => {
 
         if (!updated.value) {
             return res.status(409).json({ error: "Item could not be reserved" });
-        }
-
-        res.json(updated.value);
-    } catch (e) {
-        next(e);
-    }
-});
-
-// Rate an item (1-5 stars)
-router.post('/:id/rate', authenticate, async (req, res, next) => {
-    try {
-        const { value } = req.body;
-        const numericValue = parseInt(value, 10);
-
-        if (isNaN(numericValue) || numericValue < 1 || numericValue > 5) {
-            return res.status(400).json({ error: "Rating value must be an integer between 1 and 5" });
-        }
-
-        const db = await connectToDatabase();
-        const collection = db.collection("secondChanceItems");
-        const id = req.params.id;
-
-        const secondChanceItem = await collection.findOne({ id });
-
-        if (!secondChanceItem) {
-            return res.status(404).json({ error: "secondChanceItem not found" });
-        }
-
-        const ratings = secondChanceItem.ratings || [];
-        const userId = req.user.id;
-        const existingIndex = ratings.findIndex((rating) => rating.userId === userId);
-
-        if (existingIndex >= 0) {
-            ratings[existingIndex].value = numericValue;
-        } else {
-            ratings.push({ userId, value: numericValue });
-        }
-
-        const ratingCount = ratings.length;
-        const ratingSum = ratings.reduce((sum, rating) => sum + rating.value, 0);
-        const averageRating = ratingCount > 0 ? Number((ratingSum / ratingCount).toFixed(2)) : 0;
-
-        const updated = await collection.findOneAndUpdate(
-            { id },
-            {
-                $set: {
-                    ratings,
-                    ratingCount,
-                    averageRating
-                }
-            },
-            { returnDocument: 'after' }
-        );
-
-        if (!updated.value) {
-            return res.status(500).json({ error: "Failed to update rating" });
         }
 
         res.json(updated.value);

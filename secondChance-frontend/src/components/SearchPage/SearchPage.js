@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import {urlConfig} from '../../config';
-import { useAppContext } from '../../context/AppContext';
-import { getStripe } from '../../utils/stripeClient';
+
+const filterAvailableItems = (list = []) =>
+    list.filter((item) => (item.status || 'available') === 'available');
 
 function SearchPage() {
     const [searchQuery, setSearchQuery] = useState('');
@@ -11,11 +12,8 @@ function SearchPage() {
     const [searchResults, setSearchResults] = useState([]);
     const [searchCity, setSearchCity] = useState('');
     const [searchArea, setSearchArea] = useState('');
-    const [buyingId, setBuyingId] = useState(null);
-    const [paymentError, setPaymentError] = useState('');
     const categories = ['Living', 'Bedroom', 'Bathroom', 'Kitchen', 'Office'];
     const conditions = ['New', 'Like New', 'Older'];
-    const { isLoggedIn } = useAppContext();
 
     useEffect(() => {
         // fetch all products
@@ -29,7 +27,7 @@ function SearchPage() {
                     throw new Error(`HTTP error; ${response.status}`)
                 }
                 const data = await response.json();
-                setSearchResults(data);
+                setSearchResults(filterAvailableItems(data));
             } catch (error) {
                 console.log('Fetch error: ' + error.message);
             }
@@ -62,7 +60,7 @@ function SearchPage() {
                 throw new Error('Search failed');
             }
             const data = await response.json();
-            setSearchResults(data);
+            setSearchResults(filterAvailableItems(data));
         } catch (error) {
             console.error('Failed to fetch search results:', error);
         }
@@ -73,57 +71,6 @@ function SearchPage() {
     const goToDetailsPage = (productId) => {
         navigate(`/app/item/${productId}`);
     };
-
-    const handleBuy = async (product) => {
-        if (!isLoggedIn) {
-            navigate('/app/login');
-            return;
-        }
-        if (!product || Number(product.price || 0) <= 0) {
-            return;
-        }
-        setPaymentError('');
-        setBuyingId(product.id);
-        const token = sessionStorage.getItem('auth-token');
-        try {
-            const response = await fetch(`${urlConfig.backendUrl}/api/payments/create-checkout-session`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ itemId: product.id }),
-            });
-            if (!response.ok) {
-                const err = await response.json().catch(() => ({}));
-                throw new Error(err.error || 'Unable to start checkout');
-            }
-            const data = await response.json();
-            if (data.sessionId) {
-                const stripe = await getStripe();
-                if (stripe) {
-                    const { error } = await stripe.redirectToCheckout({ sessionId: data.sessionId });
-                    if (error) {
-                        throw new Error(error.message);
-                    }
-                    return;
-                }
-            }
-            if (data.checkoutUrl) {
-                window.location.href = data.checkoutUrl;
-                return;
-            }
-            throw new Error('Unexpected Stripe response. Missing session URL.');
-        } catch (e) {
-            setPaymentError(e.message);
-            setTimeout(() => setPaymentError(''), 5000);
-        } finally {
-            setBuyingId(null);
-        }
-    };
-
-
-
 
     return (
         <div className="container mt-5">
@@ -193,9 +140,6 @@ function SearchPage() {
                     </div>
                     <button className="btn btn-primary" onClick={handleSearch}>Search</button>
                     <div className="search-results mt-4">
-                        {paymentError && (
-                            <div className="alert alert-danger">{paymentError}</div>
-                        )}
                         {searchResults.length > 0 ? (
                             searchResults.map(product => (
                                 <div key={product.id} className="card mb-3">
@@ -222,13 +166,9 @@ function SearchPage() {
                                             View More
                                         </button>
                                         {(product.status || 'available') === 'available' && Number(product.price || 0) > 0 && (
-                                            <button
-                                                className="btn btn-modern-secondary"
-                                                onClick={() => handleBuy(product)}
-                                                disabled={buyingId === product.id}
-                                            >
-                                                {buyingId === product.id ? 'Redirecting…' : 'Buy now'}
-                                            </button>
+                                            <small className="text-muted text-center d-block">
+                                                Contact the seller to arrange pickup and payment.
+                                            </small>
                                         )}
                                     </div>
                                 </div>

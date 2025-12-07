@@ -20,12 +20,7 @@ const releaseExpiredReservations = async (collection) => {
     );
 };
 
-const buildSortOptions = (sortParam) => {
-    if (sortParam === 'rating_desc') {
-        return { averageRating: -1, ratingCount: -1 };
-    }
-    return {};
-};
+const buildSortOptions = () => ({});
 
 // Search for gifts
 router.get('/', async (req, res, next) => {
