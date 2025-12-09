@@ -1,11 +1,11 @@
 .app-footer {
-  padding: 2rem 3rem;
+  padding: 1.3rem 1.95rem;
   border-radius: 24px 24px 0 0;
 }
 
 .footer-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(117px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
@@ -45,11 +45,11 @@
 
 .footer-form input {
   flex: 1;
-  min-width: 180px;
+  min-width: 117px;
   background: rgba(5, 9, 21, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
-  padding: 0.5rem 1rem;
+  padding: 0.325rem 0.65rem;
   color: var(--text-primary);
 }
 
@@ -57,7 +57,7 @@
   background: linear-gradient(135deg, #14b8a6, #3b82f6);
   border: none;
   border-radius: 999px;
-  padding: 0.5rem 1.2rem;
+  padding: 0.325rem 0.78rem;
   color: #fff;
   font-weight: 600;
 }
@@ -85,17 +85,17 @@
 
 @media (max-width: 768px) {
   .app-footer {
-    padding: 1.5rem;
+    padding: 0.975rem;
   }
 }
 .app-footer {
-  padding: 2rem 3rem;
+  padding: 1.3rem 1.95rem;
   border-radius: 24px 24px 0 0;
 }
 
 .footer-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(117px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
@@ -137,11 +137,11 @@
 
 .footer-form input {
   flex: 1;
-  min-width: 180px;
+  min-width: 117px;
   background: rgba(5, 9, 21, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
-  padding: 0.5rem 1rem;
+  padding: 0.325rem 0.65rem;
   color: var(--text-primary);
 }
 
@@ -149,7 +149,7 @@
   background: linear-gradient(135deg, #14b8a6, #3b82f6);
   border: none;
   border-radius: 999px;
-  padding: 0.5rem 1.2rem;
+  padding: 0.325rem 0.78rem;
   color: #fff;
   font-weight: 600;
 }
@@ -177,7 +177,7 @@
 
 @media (max-width: 768px) {
   .app-footer {
-    padding: 1.5rem;
+    padding: 0.975rem;
   }
 }
 

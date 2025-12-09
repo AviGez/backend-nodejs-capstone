@@ -1,10 +1,38 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { urlConfig } from "../../config"
 import { useAppContext } from '../../context/AppContext';
 import ChatModal from '../ChatModal/ChatModal';
 
 import './DetailsPage.css';
+
+const cityOptions = [
+    'Jerusalem',
+    'Tel Aviv-Yafo',
+    'Haifa',
+    'Rishon LeZion',
+    'Petah Tikva',
+    'Ashdod',
+    'Netanya',
+    'Beer Sheva',
+    'Holon',
+    'Bnei Brak',
+    'Rehovot',
+    'Bat Yam',
+    'Herzliya',
+    'Kfar Saba',
+    'Raanana',
+    'Ramat Gan',
+    'Modiin',
+    'Hadera',
+    'Ashkelon',
+    'Nazareth',
+    'Tiberias',
+    'Eilat',
+    'Safed',
+    'Kiryat Ono',
+    'Givatayim'
+];
 
 function DetailsPage() {
     const navigate = useNavigate();
@@ -17,7 +45,13 @@ function DetailsPage() {
     const [chatModal, setChatModal] = useState({ open: false, chatId: null });
     const [chatError, setChatError] = useState('');
     const [pickupError] = useState('');
-    const [sellerStats, setSellerStats] = useState(null);
+    const [activeImageIndex, setActiveImageIndex] = useState(0);
+    const [deliveryMethod, setDeliveryMethod] = useState('pickup'); // 'pickup' or 'shipping'
+    const [customerAddress, setCustomerAddress] = useState('');
+    const [customerCity, setCustomerCity] = useState('');
+    const [customerArea, setCustomerArea] = useState('');
+    const [shippingCost, setShippingCost] = useState(0);
+    const [distance, setDistance] = useState(0);
     const { isLoggedIn, currentUserId } = useAppContext();
 
     useEffect(() => {
@@ -49,10 +83,8 @@ function DetailsPage() {
     }, [itemId, isLoggedIn, navigate, currentUserId]);
 
     useEffect(() => {
-        if (gift && gift.ownerId) {
-            fetchSellerStats(gift.ownerId);
-        }
-    }, [gift]);
+        setActiveImageIndex(0);
+    }, [gift?.id]);
 
     useEffect(() => {
         const fetchSecure = async () => {
@@ -83,31 +115,123 @@ function DetailsPage() {
         fetchSecure();
     }, [itemId, isLoggedIn]);
 
-    const fetchSellerStats = async (ownerId) => {
-        try {
-            const token = sessionStorage.getItem('auth-token');
-            if (!token || !ownerId) {
-                return;
-            }
-            const response = await fetch(`${urlConfig.backendUrl}/api/user-stats/${ownerId}/public`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setSellerStats(data);
-            }
-        } catch (err) {
-            // ignore
+    const galleryImages = useMemo(() => {
+        if (!gift) {
+            return [];
         }
-    };
+        let sources = [];
+        const raw = gift.galleryImages ?? gift.images ?? [];
+        if (Array.isArray(raw)) {
+            sources = raw.slice();
+        } else if (typeof raw === 'string') {
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    sources = parsed;
+                }
+            } catch (err) {
+                sources = [raw];
+            }
+        }
+        if (gift.image) {
+            sources.unshift(gift.image);
+        }
+        const cleaned = sources.filter(Boolean);
+        return Array.from(new Set(cleaned));
+    }, [gift]);
 
     const formatDate = (timestamp) => {
         if (!timestamp) return 'N/A';
         const date = typeof timestamp === 'number' ? new Date(timestamp * 1000) : new Date(timestamp);
-        return date.toLocaleString('default', { month: 'long', day: 'numeric', year: 'numeric' });
+        return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
     };
+
+    // Calculate distance between two coordinates (Haversine formula)
+    const calculateDistance = (lat1, lon1, lat2, lon2) => {
+        const R = 6371; // Earth's radius in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c; // Distance in km
+    };
+
+    // Get coordinates from city name (simplified - in production use geocoding API)
+    const getCityCoordinates = (cityName) => {
+        // Simplified city coordinates for Israel
+        const cityCoords = {
+            'Jerusalem': [31.7683, 35.2137],
+            'Tel Aviv-Yafo': [32.0853, 34.7818],
+            'Haifa': [32.7940, 34.9896],
+            'Rishon LeZion': [31.9730, 34.7925],
+            'Petah Tikva': [32.0871, 34.8878],
+            'Ashdod': [31.8044, 34.6553],
+            'Netanya': [32.3320, 34.8597],
+            'Beer Sheva': [31.2457, 34.7925],
+            'Holon': [32.0103, 34.7795],
+            'Bnei Brak': [32.0807, 34.8338],
+            'Rehovot': [31.8947, 34.8093],
+            'Bat Yam': [32.0238, 34.7519],
+            'Herzliya': [32.1624, 34.8447],
+            'Kfar Saba': [32.1719, 34.9069],
+            'Raanana': [32.1842, 34.8718],
+            'Ramat Gan': [32.0822, 34.8103],
+            'Modiin': [31.8986, 35.0069],
+            'Hadera': [32.4340, 34.9197],
+            'Ashkelon': [31.6688, 34.5743],
+            'Nazareth': [32.6996, 35.3035],
+            'Tiberias': [32.7959, 35.5310],
+            'Eilat': [29.5577, 34.9519],
+            'Safed': [32.9646, 35.4960],
+            'Kiryat Ono': [32.0622, 34.8563],
+            'Givatayim': [32.0702, 34.8083]
+        };
+        return cityCoords[cityName] || null;
+    };
+
+    // Calculate shipping cost
+    const calculateShippingCost = () => {
+        if (!gift?.enableShipping || deliveryMethod !== 'shipping') {
+            setShippingCost(0);
+            setDistance(0);
+            return;
+        }
+
+        if (!customerCity || !gift.pickupCity) {
+            setShippingCost(0);
+            setDistance(0);
+            return;
+        }
+
+        const pickupCoords = getCityCoordinates(gift.pickupCity);
+        const customerCoords = getCityCoordinates(customerCity);
+
+        if (!pickupCoords || !customerCoords) {
+            setShippingCost(0);
+            setDistance(0);
+            return;
+        }
+
+        const dist = calculateDistance(
+            pickupCoords[0], pickupCoords[1],
+            customerCoords[0], customerCoords[1]
+        );
+        setDistance(dist);
+
+        const basePrice = gift.shippingBasePrice || 10;
+        const pricePerKm = gift.shippingPricePerKm || 2;
+        const cost = basePrice + (dist * pricePerKm);
+        setShippingCost(cost);
+    };
+
+    useEffect(() => {
+        if (gift) {
+            calculateShippingCost();
+        }
+    }, [deliveryMethod, customerCity, gift?.enableShipping, gift?.pickupCity, gift?.shippingBasePrice, gift?.shippingPricePerKm, gift]);
 
     const handleBackClick = () => {
         navigate(-1); // Navigates back to the previous page
@@ -212,22 +336,16 @@ function DetailsPage() {
         }
         const showAddress = location && canViewFullPickupDetails;
         return (
-            <div className="glass-panel mt-4">
-                <h3 className="mb-3">Pickup location</h3>
+            <div className="details-card">
+                <h3>Pickup location</h3>
                 {location ? (
                     <>
-                        <p><strong>Label:</strong> {location.label}</p>
-                        <p><strong>City:</strong> {location.city}</p>
-                        {location.area && <p><strong>Area:</strong> {location.area}</p>}
+                        <p className="text-muted">{location.label}</p>
+                        <p className="text-strong">{location.city}{location.area ? ` · ${location.area}` : ''}</p>
                         {showAddress ? (
-                            <>
-                                <p><strong>Address:</strong> {location.address}</p>
-                                {typeof location.lat === 'number' && typeof location.lng === 'number' && (
-                                    <p><strong>Coordinates:</strong> {location.lat}, {location.lng}</p>
-                                )}
-                            </>
+                            <p className="text-strong">{location.address}</p>
                         ) : (
-                            <p className="text-muted">Full address unlocks once the seller approves you.</p>
+                            <p className="text-muted">Full address unlocks once approved.</p>
                         )}
                     </>
                 ) : (
@@ -253,8 +371,8 @@ function DetailsPage() {
             return null;
         }
         return (
-            <div className="glass-panel mt-4">
-                <h3 className="mb-2">Pickup approval</h3>
+            <div className="details-card">
+                <h3>Pickup approval</h3>
                 {secureData.approvalStatus ? (
                     <p>Status: <strong>{secureData.approvalStatus}</strong></p>
                 ) : (
@@ -283,8 +401,8 @@ function DetailsPage() {
             return null;
         }
         return (
-            <div className="glass-panel mt-4">
-                <h3 className="mb-3">Buyers awaiting pickup</h3>
+            <div className="details-card">
+                <h3>Buyers awaiting pickup</h3>
                 {secureData.approvals?.length ? (
                     <div className="seller-approvals">
                         {secureData.approvals.map((approval) => (
@@ -321,65 +439,192 @@ function DetailsPage() {
         );
     };
 
-    if (loading) return <div>Loading...</div>;
-    if (error) return <div>Error: {error}</div>;
-    if (!gift) return <div className="container mt-5">Gift not found</div>;
+    if (loading) {
+        return (
+            <div className="details-page-loader">
+                <div className="loader-container">
+                    <div className="loader-spinner"></div>
+                    <p className="loader-text">Loading item details...</p>
+                </div>
+            </div>
+        );
+    }
+    if (error) return <div className="details-page-error">Error: {error}</div>;
+    if (!gift) return <div className="details-page-error">Gift not found</div>;
 
     return (
         <div className="page-shell">
             <button className="btn btn-ghost-modern mb-4" onClick={handleBackClick}>← Back</button>
-            <div className="glass-panel mb-4">
-                <div className="image-placeholder-large mb-4">
-                    {gift.image ? (
-                        <img src={urlConfig.backendUrl+gift.image} alt={gift.name} className="product-image-large" />
-                    ) : (
-                        <div className="no-image-available-large">No Image Available</div>
-                    )}
-                </div>
-                <div className="d-flex flex-column flex-lg-row justify-content-between gap-4">
-                    <div>
-                        <h2 className="details-title">{gift.name}</h2>
-                        <p className="text-muted">Category · {gift.category}</p>
-                        <p><strong>Price:</strong> {gift.status === 'sold' ? 'Sold' : (gift.price && Number(gift.price) > 0 ? `$${Number(gift.price).toFixed(2)}` : 'Free')}</p>
-                        {gift.status === 'available' && Number(gift.price || 0) > 0 && (
-                            <button
-                                className="btn btn-modern-secondary mt-2"
-                                onClick={() => openChat()}
-                            >
-                                Message seller to buy
-                            </button>
-                        )}
-                        <p><strong>Condition:</strong> {gift.condition}</p>
-                        <p><strong>Status:</strong> {gift.status || 'available'}</p>
-                        {gift.status === 'reserved' && gift.reservedUntil && (
-                            <p><strong>Reserved Until:</strong> {new Date(gift.reservedUntil).toLocaleString()}</p>
-                        )}
-                        {(gift.city || gift.area) && (
-                            <p>
-                                <strong>Location:</strong> {gift.city || 'Unknown city'}, {gift.area || 'Area not specified'}
-                            </p>
-                        )}
-                        {gift.mapUrl && (
-                            <p>
-                                <a href={gift.mapUrl} target="_blank" rel="noopener noreferrer" className="btn btn-modern-secondary btn-sm">
-                                    Open in Maps
-                                </a>
-                            </p>
-                        )}
-                        <p><strong>Date Added:</strong> {formatDate(gift.date_added)}</p>
-                        <p><strong>Description:</strong> {gift.description}</p>
-                        {sellerStats?.sellerLevelLabel && (
-                            <p><strong>Seller level:</strong> {sellerStats.sellerLevelLabel}</p>
+            <div className="details-panel">
+                <div className="details-wrapper">
+                    <div className="details-media">
+                    <div className="details-media__main">
+                        {galleryImages.length ? (
+                            <img
+                                src={urlConfig.backendUrl + galleryImages[activeImageIndex]}
+                                alt={gift.name}
+                            />
+                        ) : (
+                            <div className="details-media__placeholder">No image available</div>
                         )}
                     </div>
+                    {galleryImages.length > 1 && (
+                        <div className="details-thumbs">
+                            {galleryImages.map((img, index) => (
+                                <button
+                                    key={`${img}-${index}`}
+                                    className={`details-thumb ${index === activeImageIndex ? 'is-active' : ''}`}
+                                    onClick={() => setActiveImageIndex(index)}
+                                    type="button"
+                                >
+                                    <img src={urlConfig.backendUrl + img} alt={`${gift.name} ${index + 1}`} />
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    </div>
+                    <div className="details-info">
+                        <div className="details-info__header">
+                            <span className="chip">{gift.category}</span>
+                            <h2>{gift.name}</h2>
+                            <p className="muted">{gift.condition}</p>
+                        </div>
+                        <div className="details-info__grid">
+                            <div className="details-card compact">
+                                <span className="label">Price</span>
+                                <strong>{gift.status === 'sold' ? 'Sold' : (gift.price && Number(gift.price) > 0 ? `$${Number(gift.price).toFixed(2)}` : 'Free')}</strong>
+                                {gift.status === 'available' && Number(gift.price || 0) > 0 && (
+                                    <button className="btn btn-modern-secondary btn-sm" onClick={() => openChat()}>
+                                        Message seller
+                                    </button>
+                                )}
+                                {gift.enableShipping && gift.status === 'available' && (
+                                    <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(226, 232, 240, 0.6)' }}>
+                                        <div style={{ marginBottom: '0.75rem' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginBottom: '0.5rem' }}>
+                                                <input
+                                                    type="radio"
+                                                    name="deliveryMethod"
+                                                    value="pickup"
+                                                    checked={deliveryMethod === 'pickup'}
+                                                    onChange={(e) => setDeliveryMethod(e.target.value)}
+                                                    style={{ cursor: 'pointer' }}
+                                                />
+                                                <span>Pickup</span>
+                                            </label>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                                <input
+                                                    type="radio"
+                                                    name="deliveryMethod"
+                                                    value="shipping"
+                                                    checked={deliveryMethod === 'shipping'}
+                                                    onChange={(e) => setDeliveryMethod(e.target.value)}
+                                                    style={{ cursor: 'pointer' }}
+                                                />
+                                                <span>Shipping</span>
+                                            </label>
+                                        </div>
+                                        {deliveryMethod === 'shipping' && (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Your address"
+                                                    value={customerAddress}
+                                                    onChange={(e) => setCustomerAddress(e.target.value)}
+                                                    style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(203, 213, 225, 0.6)' }}
+                                                />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Your city"
+                                                    value={customerCity}
+                                                    onChange={(e) => setCustomerCity(e.target.value)}
+                                                    list="customer-city-options"
+                                                    style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(203, 213, 225, 0.6)' }}
+                                                />
+                                                <datalist id="customer-city-options">
+                                                    {cityOptions.map((option) => (
+                                                        <option key={option} value={option} />
+                                                    ))}
+                                                </datalist>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Your area/neighborhood"
+                                                    value={customerArea}
+                                                    onChange={(e) => setCustomerArea(e.target.value)}
+                                                    style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(203, 213, 225, 0.6)' }}
+                                                />
+                                                {distance > 0 && (
+                                                    <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.5rem' }}>
+                                                        Distance: {distance.toFixed(1)} km
+                                                    </div>
+                                                )}
+                                                {shippingCost > 0 && (
+                                                    <div style={{ fontSize: '0.9rem', fontWeight: '600', marginTop: '0.5rem' }}>
+                                                        Shipping: ${shippingCost.toFixed(2)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        {(deliveryMethod === 'pickup' ? Number(gift.price || 0) : Number(gift.price || 0) + shippingCost) > 0 && (
+                                            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(226, 232, 240, 0.6)' }}>
+                                                <div style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '0.5rem' }}>
+                                                    Total: ${(deliveryMethod === 'pickup' ? Number(gift.price || 0) : Number(gift.price || 0) + shippingCost).toFixed(2)}
+                                                </div>
+                                                {deliveryMethod === 'shipping' && customerCity && (
+                                                    <button 
+                                                        className="btn btn-modern-secondary btn-sm"
+                                                        style={{ 
+                                                            background: 'linear-gradient(135deg, #0070ba 0%, #003087 100%)',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            width: '100%',
+                                                            marginTop: '0.5rem'
+                                                        }}
+                                                        onClick={() => {
+                                                            // PayPal integration would go here
+                                                            alert('PayPal payment integration - Total: $' + (Number(gift.price || 0) + shippingCost).toFixed(2));
+                                                        }}
+                                                    >
+                                                        Pay with PayPal
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="details-card compact">
+                                <span className="label">Status</span>
+                                <strong>{gift.status || 'available'}</strong>
+                                {gift.status === 'reserved' && gift.reservedUntil && (
+                                    <small className="muted">Until {new Date(gift.reservedUntil).toLocaleString()}</small>
+                                )}
+                            </div>
+                            <div className="details-card compact">
+                                <span className="label">Location</span>
+                                <strong>{gift.city || 'Unknown city'}</strong>
+                                <small className="muted">{gift.area || 'Area not specified'}</small>
+                            </div>
+                            <div className="details-card compact">
+                                <span className="label">Date added</span>
+                                <strong>{formatDate(gift.date_added)}</strong>
+                            </div>
+                        </div>
+                        <div className="details-card">
+                            <h3>Description</h3>
+                            <p>{gift.description || 'No description provided.'}</p>
+                        </div>
+                    </div>
+                </div>
+                {actionMessage && <div className="alert alert-info mt-3">{actionMessage}</div>}
+                {chatError && <div className="alert alert-danger mt-3">{chatError}</div>}
+                <div className="details-grid">
+                    {renderBuyerPanel()}
+                    {renderSellerPanel()}
+                    {pickupError && <div className="alert alert-danger">{pickupError}</div>}
+                    {renderPickupLocation()}
                 </div>
             </div>
-            {actionMessage && <div className="alert alert-info mt-3">{actionMessage}</div>}
-            {chatError && <div className="alert alert-danger mt-3">{chatError}</div>}
-            {renderBuyerPanel()}
-            {renderSellerPanel()}
-            {pickupError && <div className="alert alert-danger">{pickupError}</div>}
-            {renderPickupLocation()}
             {chatModal.open && (
                 <ChatModal
                     chatId={chatModal.chatId}

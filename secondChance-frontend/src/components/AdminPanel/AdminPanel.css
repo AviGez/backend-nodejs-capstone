@@ -5,13 +5,13 @@
 }
 
 .stat-card {
-  padding: 1rem;
+  padding: 0.65rem;
   border-radius: 16px;
 }
 
 .chart-card {
   border-radius: 20px;
-  padding: 1rem;
+  padding: 0.65rem;
 }
 
 .status-list,

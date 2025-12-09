@@ -19,7 +19,6 @@ export const AppProvider = ({ children }) => {
   const [userName, setUserName] = useState(name);
   const [userRole, setUserRole] = useState(role);
   const [currentUserId, setCurrentUserId] = useState(userId);
-  const [userStats, setUserStats] = useState(null);
 
   return (
     <AppContext.Provider value={{
@@ -31,8 +30,6 @@ export const AppProvider = ({ children }) => {
       setUserRole,
       currentUserId,
       setCurrentUserId,
-      userStats,
-      setUserStats,
     }}>
       {children}
     </AppContext.Provider>

@@ -1,7 +1,6 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import MainPage from './components/MainPage/MainPage';
-import SearchPage from './components/SearchPage/SearchPage';
 import LoginPage from './components/LoginPage/LoginPage';
 import DetailsPage from './components/DetailsPage/DetailsPage';
 import RegisterPage from './components/RegisterPage/RegisterPage';
@@ -25,7 +24,6 @@ function App() {
           <Route path="/app" element={<MainPage />} />
           <Route path='/app/profile' element={<Profile/>}/>
           <Route path="/app/item/:itemId" element={<DetailsPage/>} />
-          <Route path="/app/search" element={<SearchPage/>} />
           <Route path="/app/login" element={<LoginPage/>} />
           <Route path="/app/register" element={<RegisterPage />} />
           <Route path="/app/addItem" element={<ItemPage />} />

@@ -8,7 +8,6 @@ const path = require('path');
 
 const connectToDatabase = require('./models/db');
 const { initSocket } = require('./socket');
-const userStatsRoutes = require('./routes/userStatsRoutes');
 
 
 const app = express();
@@ -44,7 +43,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/secondchance/search', searchRoutes);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/chats', chatRoutes);
-app.use('/api/user-stats', userStatsRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {

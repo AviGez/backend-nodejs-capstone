@@ -2,23 +2,8 @@ const express = require('express');
 const router = express.Router();
 const connectToDatabase = require('../models/db');
 require('dotenv').config();
-
-const releaseExpiredReservations = async (collection) => {
-    const now = new Date();
-    await collection.updateMany(
-        {
-            status: 'reserved',
-            reservedUntil: { $lt: now }
-        },
-        {
-            $set: {
-                status: 'available',
-                reservedByUserId: null,
-                reservedUntil: null
-            }
-        }
-    );
-};
+const { notificationService } = require('./notificationsRoutes');
+const { releaseExpiredReservations } = require('../services/reservations');
 
 const buildSortOptions = () => ({});
 
@@ -26,8 +11,8 @@ const buildSortOptions = () => ({});
 router.get('/', async (req, res, next) => {
     try {
         const db = await connectToDatabase();
+        await releaseExpiredReservations(db, notificationService);
         const collection = db.collection(process.env.MONGO_COLLECTION);
-        await releaseExpiredReservations(collection);
         // Initialize the query object
         let query = {};
 

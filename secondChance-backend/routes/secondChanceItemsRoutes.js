@@ -1,12 +1,13 @@
 const express = require('express');
 const multer = require('multer');
 const { ObjectId } = require('mongodb');
+const path = require('path');
 const router = express.Router();
 const connectToDatabase = require('../models/db');
 const logger = require('../logger');
 const { authenticate, authorizeAdmin } = require('../middleware/auth');
 const { notificationService } = require('./notificationsRoutes');
-const { recordItemListed, recordItemSold, finalizeBadges } = require('../services/userStats');
+const { releaseExpiredReservations } = require('../services/reservations');
 
 // Define the upload directory path
 const directoryPath = 'public/images';
@@ -17,39 +18,14 @@ const storage = multer.diskStorage({
     cb(null, directoryPath); // Specify the upload directory
   },
   filename: function (req, file, cb) {
-    cb(null, file.originalname); // Use the original file name
+    const ext = path.extname(file.originalname) || '';
+    const safeBaseName = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9-_]/g, '').slice(0, 32) || 'item';
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `${safeBaseName}-${uniqueSuffix}${ext}`);
   },
 });
 
 const upload = multer({ storage: storage });
-
-const releaseExpiredReservations = async (collection) => {
-    const now = new Date();
-    await collection.updateMany(
-        {
-            status: 'reserved',
-            reservedUntil: { $lt: now }
-        },
-        {
-            $set: {
-                status: 'available',
-                reservedByUserId: null,
-                reservedUntil: null
-            }
-        }
-    );
-
-    await collection.updateMany(
-        { status: { $exists: false } },
-        {
-            $set: {
-                status: 'available',
-                reservedByUserId: null,
-                reservedUntil: null
-            }
-        }
-    );
-};
 
 const APPROVAL_STATUSES = {
     PENDING: 'pending',
@@ -70,31 +46,14 @@ const ensureApprovalsIndex = async (db) => {
     approvalsIndexEnsured = true;
 };
 
-const recordApprovalResponseHours = async (db, { itemId, buyerId, sellerId }) => {
-    if (!sellerId || !buyerId || !itemId) {
-        return;
-    }
-    const approvalsCollection = db.collection('itemApprovals');
-    const approval = await approvalsCollection.findOne({ itemId, buyerId, sellerId });
-    if (!approval || !approval.createdAt) {
-        return;
-    }
-    const createdAt = approval.createdAt instanceof Date ? approval.createdAt : new Date(approval.createdAt);
-    const hours = Math.max(0, (Date.now() - createdAt.getTime()) / (1000 * 60 * 60));
-    if (Number.isNaN(hours) || !Number.isFinite(hours)) {
-        return;
-    }
-    const { recordApprovalResponse, finalizeBadges } = require('../services/userStats');
-    await recordApprovalResponse({ sellerId, responseHours: hours });
-    await finalizeBadges(sellerId);
-};
-
 const getApprovalDoc = async (db, itemId, buyerId, sellerId) => {
     const approvalsCollection = db.collection('itemApprovals');
     return approvalsCollection.findOne({ itemId, buyerId, sellerId });
 };
 
 const MAX_PICKUP_LOCATIONS = 1;
+const CAROUSEL_WINDOW_SECONDS = 7 * 24 * 60 * 60; // keep featured items for 7 days
+const CAROUSEL_NOTICE_SECONDS = CAROUSEL_WINDOW_SECONDS - (2 * 24 * 60 * 60); // notify with 2 days remaining
 const MAX_LAT = 90;
 const MIN_LAT = -90;
 const MAX_LNG = 180;
@@ -254,9 +213,8 @@ const buildSortOptions = () => ({});
 router.get('/', async (req, res, next) => {
     try {
         const db = await connectToDatabase();
-
+        await releaseExpiredReservations(db, notificationService);
         const collection = db.collection("secondChanceItems");
-        await releaseExpiredReservations(collection);
         const query = buildItemQuery(req.query || {});
         const sortOptions = buildSortOptions(req.query?.sort);
         let cursor = collection.find(query);
@@ -271,12 +229,63 @@ router.get('/', async (req, res, next) => {
     }
 });
 
+router.get('/carousel', async (req, res, next) => {
+    try {
+        const db = await connectToDatabase();
+        await releaseExpiredReservations(db, notificationService);
+        const collection = db.collection('secondChanceItems');
+
+        const nowSeconds = Math.floor(Date.now() / 1000);
+        const windowStart = nowSeconds - CAROUSEL_WINDOW_SECONDS;
+        const noticeThreshold = nowSeconds - CAROUSEL_NOTICE_SECONDS;
+
+        const [items, notifyCandidates] = await Promise.all([
+            collection.find({
+                date_added: { $gte: windowStart },
+                status: { $ne: 'sold' },
+            })
+                .sort({ date_added: -1 })
+                .limit(20)
+                .toArray(),
+            collection.find({
+                date_added: { $lte: noticeThreshold, $gte: windowStart },
+                carouselExitNotified: { $ne: true },
+                ownerId: { $exists: true, $ne: null },
+            }, {
+                projection: { _id: 1, id: 1, name: 1, ownerId: 1, date_added: 1 },
+            }).toArray(),
+        ]);
+
+        for (const candidate of notifyCandidates) {
+            const ageSeconds = nowSeconds - (candidate.date_added || nowSeconds);
+            const secondsLeft = Math.max(CAROUSEL_WINDOW_SECONDS - ageSeconds, 0);
+            const daysLeft = Math.max(1, Math.round(secondsLeft / (24 * 60 * 60)));
+
+            await notificationService.notifyCarouselExitSoon({
+                sellerId: candidate.ownerId,
+                itemId: candidate.id,
+                itemName: candidate.name,
+                daysLeft,
+            });
+
+            await collection.updateOne(
+                { _id: candidate._id },
+                { $set: { carouselExitNotified: true, carouselExitNotifiedAt: new Date() } }
+            );
+        }
+
+        res.json(items);
+    } catch (e) {
+        next(e);
+    }
+});
+
 // Get currently reserved items for logged-in user
 router.get('/reservations/me', authenticate, async (req, res, next) => {
     try {
         const db = await connectToDatabase();
+        await releaseExpiredReservations(db, notificationService);
         const collection = db.collection("secondChanceItems");
-        await releaseExpiredReservations(collection);
 
         const items = await collection.find({
             status: 'reserved',
@@ -292,8 +301,8 @@ router.get('/reservations/me', authenticate, async (req, res, next) => {
 router.get('/mine', authenticate, async (req, res, next) => {
     try {
         const db = await connectToDatabase();
+        await releaseExpiredReservations(db, notificationService);
         const collection = db.collection("secondChanceItems");
-        await releaseExpiredReservations(collection);
 
         const items = await collection.find({
             ownerId: req.user.id,
@@ -312,9 +321,9 @@ router.get('/mine', authenticate, async (req, res, next) => {
 router.get('/admin/stats', authenticate, authorizeAdmin, async (req, res, next) => {
     try {
         const db = await connectToDatabase();
+        await releaseExpiredReservations(db, notificationService);
         const itemsCollection = db.collection("secondChanceItems");
         const usersCollection = db.collection("users");
-        await releaseExpiredReservations(itemsCollection);
 
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
@@ -422,8 +431,8 @@ router.get('/admin/stats', authenticate, authorizeAdmin, async (req, res, next) 
 router.get('/admin/all', authenticate, authorizeAdmin, async (req, res, next) => {
     try {
         const db = await connectToDatabase();
+        await releaseExpiredReservations(db, notificationService);
         const collection = db.collection("secondChanceItems");
-        await releaseExpiredReservations(collection);
         const usersCollection = db.collection("users");
         const items = await collection.find({}).toArray();
 
@@ -469,8 +478,8 @@ router.get('/admin/all', authenticate, authorizeAdmin, async (req, res, next) =>
 router.get('/:id', async (req, res, next) => {
     try {
         const db = await connectToDatabase();
+        await releaseExpiredReservations(db, notificationService);
         const collection = db.collection("secondChanceItems");
-        await releaseExpiredReservations(collection);
         const id = req.params.id;
         const secondChanceItem = await collection.findOne({ id: id });
 
@@ -486,7 +495,9 @@ router.get('/:id', async (req, res, next) => {
 
 
 // Add a new item
-router.post('/', authenticate, upload.single('file'), async(req, res,next) => {
+const MAX_IMAGES_PER_ITEM = 5;
+
+router.post('/', authenticate, upload.array('images', MAX_IMAGES_PER_ITEM), async (req, res, next) => {
     try {
         const db = await connectToDatabase();
         const collection = db.collection("secondChanceItems");
@@ -510,6 +521,25 @@ router.post('/', authenticate, upload.single('file'), async(req, res,next) => {
         secondChanceItem.status = 'available';
         secondChanceItem.reservedByUserId = null;
         secondChanceItem.reservedUntil = null;
+        secondChanceItem.carouselExitNotified = false;
+        const files = Array.isArray(req.files) ? req.files : [];
+        const galleryImages = files.map((file) => `/images/${file.filename || file.originalname}`);
+        if (galleryImages.length > 0) {
+            secondChanceItem.image = galleryImages[0];
+            secondChanceItem.galleryImages = galleryImages;
+        } else {
+            secondChanceItem.image = secondChanceItem.image || '';
+            if (secondChanceItem.galleryImages) {
+                try {
+                    const parsed = JSON.parse(secondChanceItem.galleryImages);
+                    secondChanceItem.galleryImages = Array.isArray(parsed) ? parsed : [];
+                } catch (err) {
+                    secondChanceItem.galleryImages = [];
+                }
+            } else {
+                secondChanceItem.galleryImages = [];
+            }
+        }
         secondChanceItem.city = req.body.city || '';
         secondChanceItem.area = req.body.area || '';
         secondChanceItem.mapUrl = req.body.mapUrl || '';
@@ -526,10 +556,6 @@ router.post('/', authenticate, upload.single('file'), async(req, res,next) => {
         secondChanceItem.pickupLocations = parsePickupLocationsInput(req.body.pickupLocations);
 
         const insertResult = await collection.insertOne(secondChanceItem);
-        recordItemListed({
-            userId: secondChanceItem.ownerId,
-            price: secondChanceItem.price,
-        }).then(() => finalizeBadges(secondChanceItem.ownerId)).catch((err) => logger.error('Failed to update stats', err));
         notificationService.notifyAdminsNewItem({
             itemId: secondChanceItem.id,
             itemName: secondChanceItem.name,
@@ -545,8 +571,8 @@ router.post('/', authenticate, upload.single('file'), async(req, res,next) => {
 router.put('/:id', authenticate, async(req, res,next) => {
     try {
         const db = await connectToDatabase();
+        await releaseExpiredReservations(db, notificationService);
         const collection = db.collection("secondChanceItems");
-        await releaseExpiredReservations(collection);
         const id = req.params.id;
         const secondChanceItem = await collection.findOne({ id });
 
@@ -683,6 +709,12 @@ router.post('/:id/approve-buyer', authenticate, async (req, res, next) => {
         if (item.ownerId !== req.user.id) {
             return res.status(403).json({ error: "Only the owner can approve buyers" });
         }
+        if (item.status === 'sold') {
+            return res.status(409).json({ error: "Item is already sold" });
+        }
+        if (item.status === 'reserved' && item.reservedByUserId && item.reservedByUserId !== buyerId) {
+            return res.status(409).json({ error: "Item is currently reserved for another buyer" });
+        }
 
         const sellerId = item.ownerId;
         const now = new Date();
@@ -719,9 +751,32 @@ router.post('/:id/approve-buyer', authenticate, async (req, res, next) => {
         }
 
         const approval = await approvalsCollection.findOne({ itemId, buyerId, sellerId });
-        recordApprovalResponseHours(db, { itemId, buyerId, sellerId }).catch((err) =>
-            logger.error('Failed to record approval response hours', err)
+
+        const pickupDeadline = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const itemUpdateResult = await itemsCollection.updateOne(
+            {
+                id: itemId,
+                $or: [
+                    { status: { $exists: false } },
+                    { status: 'available' },
+                    { status: 'reserved', reservedByUserId: buyerId },
+                ],
+                status: { $ne: 'sold' },
+            },
+            {
+                $set: {
+                    status: 'reserved',
+                    reservedByUserId: buyerId,
+                    reservedUntil: pickupDeadline,
+                    reservedReason: 'pickupApproval',
+                    pickupApprovedAt: now,
+                },
+            }
         );
+
+        if (itemUpdateResult.matchedCount === 0) {
+            return res.status(409).json({ error: "Item is not available for pickup approval" });
+        }
 
         res.json({
             approval,
@@ -944,8 +999,8 @@ router.get('/:id/pickup-options', authenticate, async (req, res, next) => {
 router.post('/:id/reserve', authenticate, async (req, res, next) => {
     try {
         const db = await connectToDatabase();
+        await releaseExpiredReservations(db, notificationService);
         const collection = db.collection("secondChanceItems");
-        await releaseExpiredReservations(collection);
 
         const id = req.params.id;
         const secondChanceItem = await collection.findOne({ id });

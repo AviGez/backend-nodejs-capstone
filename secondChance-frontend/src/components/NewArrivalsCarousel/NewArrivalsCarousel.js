@@ -5,7 +5,9 @@ import './NewArrivalsCarousel.css';
 
 const NewArrivalsCarousel = () => {
   const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [skeletonCount, setSkeletonCount] = useState(6);
   const trackRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
@@ -15,18 +17,23 @@ const NewArrivalsCarousel = () => {
 
   useEffect(() => {
     const fetchNewArrivals = async () => {
+      setLoading(true);
       try {
-        const response = await fetch(`${urlConfig.backendUrl}/api/secondchance/items`);
+        const response = await fetch(`${urlConfig.backendUrl}/api/secondchance/items/carousel`);
         if (!response.ok) {
           throw new Error('Unable to load new arrivals');
         }
         const data = await response.json();
-        const sorted = [...data]
-          .sort((a, b) => (b.date_added || 0) - (a.date_added || 0))
-          .slice(0, 10);
-        setItems(sorted);
+        const itemsArray = Array.isArray(data) ? data : [];
+        setItems(itemsArray);
+        // Update skeleton count to match actual items count
+        if (itemsArray.length > 0) {
+          setSkeletonCount(itemsArray.length);
+        }
       } catch (e) {
         setError(e.message);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -74,7 +81,7 @@ const NewArrivalsCarousel = () => {
     setTimeout(() => setAutoScroll(true), 4000);
   };
 
-  if (error || items.length === 0) {
+  if (error) {
     return null;
   }
 
@@ -83,12 +90,14 @@ const NewArrivalsCarousel = () => {
       <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <div>
           <h3 className="mb-1">New Arrivals</h3>
-          <p className="text-muted mb-0">Fresh drops from the last few days.</p>
+          <p className="text-muted mb-0">Featured for one week, rotating constantly.</p>
         </div>
+        {!loading && items.length > 0 && (
         <div className="carousel-controls">
           <button onClick={() => scrollByOffset(-300)} aria-label="Scroll left">‹</button>
           <button onClick={() => scrollByOffset(300)} aria-label="Scroll right">›</button>
         </div>
+        )}
       </div>
       <div
         className="carousel-track"
@@ -101,7 +110,23 @@ const NewArrivalsCarousel = () => {
         onTouchMove={handleDrag}
         onTouchEnd={stopDrag}
       >
-        {items.map((item) => (
+        {loading ? (
+          // Skeleton loaders - show same number as will be rendered
+          Array.from({ length: skeletonCount }).map((_, index) => (
+            <div key={`skeleton-${index}`} className="carousel-card carousel-skeleton">
+              <div className="carousel-image skeleton-image">
+                <div className="skeleton-shimmer"></div>
+              </div>
+              <div className="carousel-body">
+                <div className="skeleton-line skeleton-title"></div>
+                <div className="skeleton-line skeleton-subtitle"></div>
+                <div className="skeleton-line skeleton-price"></div>
+                <div className="skeleton-line skeleton-date"></div>
+              </div>
+            </div>
+          ))
+        ) : (
+          items.map((item) => (
           <div key={item.id} className="carousel-card" onClick={() => navigate(`/app/item/${item.id}`)}>
             <div className="carousel-image">
               {item.image ? (
@@ -115,12 +140,24 @@ const NewArrivalsCarousel = () => {
               <small className="text-muted d-block">
                 {item.category} · {item.condition}
               </small>
+              <small className="d-block">
+                {Number(item.price || 0) > 0 ? `$${Number(item.price).toFixed(2)}` : 'Free'}
+              </small>
               <small className="text-highlight">
-                Added {item.date_added ? new Date(item.date_added * 1000).toLocaleDateString() : 'recently'}
+                Added{' '}
+                {item.date_added
+                  ? new Date(item.date_added * 1000)
+                      .toLocaleDateString('en-GB', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: '2-digit',
+                      })
+                  : 'recently'}
               </small>
             </div>
           </div>
-        ))}
+          ))
+        )}
       </div>
     </section>
   );

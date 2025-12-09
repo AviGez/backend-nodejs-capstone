@@ -12,7 +12,17 @@ function SearchPage() {
     const [searchResults, setSearchResults] = useState([]);
     const [searchCity, setSearchCity] = useState('');
     const [searchArea, setSearchArea] = useState('');
-    const categories = ['Living', 'Bedroom', 'Bathroom', 'Kitchen', 'Office'];
+           const categories = [
+               'Furniture',
+               'Tools',
+               'Electronics',
+               'Clothing & Accessories',
+               'Toys',
+               'Vehicles & Transportation',
+               'Books & Media',
+               'Pets & Pet Supplies',
+               'Other',
+           ];
     const conditions = ['New', 'Like New', 'Older'];
 
     useEffect(() => {

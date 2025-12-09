@@ -5,12 +5,12 @@
 }
 
 .search-bar .form-control {
-    width: 75%; /* Adjust based on your design preference */
+    width: 49%; /* Adjust based on your design preference */
     margin-right: 1rem;
 }
 
 .search-bar .btn {
-    width: 20%; /* Adjust based on your design preference */
+    width: 13%; /* Adjust based on your design preference */
 }
 
 .card {
@@ -20,12 +20,12 @@
 }
 
 .card-body {
-    padding: 1rem;
+    padding: 0.65rem;
 }
 
 .card-footer {
     text-align: right;
-    padding: 0.5rem 1rem;
+    padding: 0.325rem 0.65rem;
     border-top: 1px solid #ddd;
 }
 
@@ -56,7 +56,7 @@
 
 .card-img-top {
     width: 100%; /* Full width */
-    height: 180px; /* Fixed height */
+    height: 117px; /* Fixed height */
     object-fit: cover; /* Cover the entire area without stretching */
 }
 
@@ -69,12 +69,12 @@
 }
 
 .card-body {
-    padding: 1rem;
+    padding: 0.65rem;
 }
 
 .card-footer {
     text-align: center;
-    padding: 1rem;
+    padding: 0.65rem;
     border-top: none;
 }
 

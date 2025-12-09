@@ -32,7 +32,7 @@ body::before {
     color: #1a1a1a; /* Updated text color for better readability */
     max-width: 1200px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 13px;
     background: rgba(255, 255, 255, 0.7); /* Semi-transparent white background */
     border-radius: 10px; /* Rounded corners for the content area */
 }
@@ -56,7 +56,7 @@ h1, h2 {
     background-color: #1E90FF; /* Vibrant color for the button */
     color: #FFFFFF; /* White text for contrast */
     border: none;
-    padding: 1rem 2.5rem; /* Generous padding for a larger button */
+    padding: 0.65rem 1.625rem; /* Generous padding for a larger button */
     border-radius: 30px; /* Rounded, but not fully pill-shaped */
     font-size: 1.2rem; /* Larger font size for readability */
     font-weight: 700; /* Bold font for the button text */

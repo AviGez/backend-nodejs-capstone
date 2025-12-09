@@ -7,7 +7,7 @@ import { useAppContext } from '../../context/AppContext';
 const Profile = () => {
   const [userDetails, setUserDetails] = useState({});
   const [updatedDetails, setUpdatedDetails] = useState({});
-  const { setUserName, userStats, setUserStats } = useAppContext();
+  const { setUserName } = useAppContext();
   const [changed, setChanged] = useState("");
   const [editMode, setEditMode] = useState(false);
   const [uploadedItems, setUploadedItems] = useState([]);
@@ -20,26 +20,6 @@ const Profile = () => {
 
   const navigate = useNavigate();
 
-  const fetchStats = useCallback(async () => {
-    try {
-      const token = sessionStorage.getItem('auth-token');
-      if (!token) {
-        setUserStats(null);
-        return;
-      }
-      const response = await fetch(`${urlConfig.backendUrl}/api/user-stats/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        return;
-      }
-      const data = await response.json();
-      setUserStats(data);
-    } catch (err) {
-      console.error(err);
-    }
-  }, [setUserStats]);
-
   useEffect(() => {
     const authtoken = sessionStorage.getItem("auth-token");
     if (!authtoken) {
@@ -48,8 +28,7 @@ const Profile = () => {
     }
     fetchUserProfile();
     fetchUserContent(authtoken);
-    fetchStats();
-  }, [navigate, fetchStats]);
+  }, [navigate]);
 
   const fetchUserProfile = () => {
     try {
@@ -284,89 +263,76 @@ const Profile = () => {
   );
 
   return (
-    <div className="profile-container">
-      {editMode ? (
-        <form onSubmit={handleSubmit}>
-          <label>
-            Email
-            <input
-              type="email"
-              name="email"
-              value={userDetails.email}
-              disabled
-            />
-          </label>
-          <label>
-            Name
-            <input
-              type="text"
-              name="name"
-              value={updatedDetails.name || ''}
-              onChange={handleInputChange}
-            />
-          </label>
+    <div className="page-shell">
+      <div className="profile-container">
+        {editMode ? (
+          <form onSubmit={handleSubmit}>
+            <label>
+              Email
+              <input
+                type="email"
+                name="email"
+                value={userDetails.email}
+                disabled
+              />
+            </label>
+            <label>
+              Name
+              <input
+                type="text"
+                name="name"
+                value={updatedDetails.name || ''}
+                onChange={handleInputChange}
+              />
+            </label>
 
-          <button type="submit">Save</button>
-        </form>
-      ) : (
-        <>
-          <div className="profile-details">
-            <h1>Hi, {userDetails.name}</h1>
-            <p><b>Email:</b> {userDetails.email}</p>
-            <button onClick={handleEdit}>Edit</button>
-            <span style={{color:'green',height:'.5cm',display:'block',fontStyle:'italic',fontSize:'12px'}}>{changed}</span>
-          </div>
-          <div className="profile-content">
-            {userStats && (
-              <section>
-                <h2>Badge showcase</h2>
-                <p className="text-muted mb-2">{userStats.sellerLevelLabel || 'Rookie Seller'}</p>
-                {userStats.badges?.length ? (
-                  <div className="badge-list">
-                    {userStats.badges.map((badge) => (
-                      <span key={badge} className="badge-chip">
-                        {badge.replace(/-/g, ' ')}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-muted">No badges yet. Keep sharing to unlock new achievements.</p>
-                )}
-              </section>
-            )}
-            {contentLoading ? (
-              <p>Loading your items...</p>
-            ) : contentError ? (
-              <div className="alert alert-danger">{contentError}</div>
-            ) : (
-              <>
-                {itemActionError && (
-                  <div className="alert alert-danger">{itemActionError}</div>
-                )}
-                {itemActionSuccess && (
-                  <div className="alert alert-success">{itemActionSuccess}</div>
-                )}
-                <section>
-                  <h2>My Listings</h2>
-                  {uploadedItems.length ? (
-                    uploadedItems.map(renderItemCard)
-                  ) : (
-                    <p className="text-muted">You haven't posted any items yet.</p>
+            <button type="submit">Save</button>
+          </form>
+        ) : (
+          <>
+            <div className="profile-details">
+              <h1>Hi, {userDetails.name}</h1>
+              <p><b>Email:</b> {userDetails.email}</p>
+              <button onClick={handleEdit}>Edit</button>
+              {changed && (
+                <span style={{color:'green',height:'.5cm',display:'block',fontStyle:'italic',fontSize:'12px'}}>{changed}</span>
+              )}
+            </div>
+            <div className="profile-content">
+              {contentLoading ? (
+                <p className="text-muted" style={{textAlign: 'center', padding: '2rem'}}>Loading your items...</p>
+              ) : contentError ? (
+                <div className="alert alert-danger">{contentError}</div>
+              ) : (
+                <>
+                  {itemActionError && (
+                    <div className="alert alert-danger">{itemActionError}</div>
                   )}
-                </section>
-                <section>
-                  <h2>My Reservations</h2>
-                  {reservations.length ? (
-                    reservations.map(renderReservationCard)
-                  ) : (
-                    <p className="text-muted">You have no active reservations.</p>
+                  {itemActionSuccess && (
+                    <div className="alert alert-success">{itemActionSuccess}</div>
                   )}
-                </section>
-              </>
-            )}
-          </div>
-        </>
-      )}
+                  <section>
+                    <h2>My Listings</h2>
+                    {uploadedItems.length ? (
+                      uploadedItems.map(renderItemCard)
+                    ) : (
+                      <p className="text-muted">You haven't posted any items yet.</p>
+                    )}
+                  </section>
+                  <section>
+                    <h2>My Reservations</h2>
+                    {reservations.length ? (
+                      reservations.map(renderReservationCard)
+                    ) : (
+                      <p className="text-muted">You have no active reservations.</p>
+                    )}
+                  </section>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 };

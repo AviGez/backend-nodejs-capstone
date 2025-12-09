@@ -11,6 +11,8 @@ const NOTIFICATION_TYPES = {
     NEW_ITEM_ADMIN: 'adminNewItem',
     ITEM_SOLD: 'itemSold',
     PICKUP_APPROVAL_REQUEST: 'pickupApprovalRequest',
+    CAROUSEL_EXIT_SOON: 'carouselExitSoon',
+    BUYER_FLAGGED: 'buyerFlagged',
 };
 
 const normalizeType = (type) => {
@@ -229,6 +231,36 @@ const notificationService = {
             title: 'New pickup approval request',
             message: `A buyer asked to pick up ${itemName || 'your item'}. Review the request in chat.`,
             context: { itemId, buyerId },
+        });
+    },
+
+    async notifyCarouselExitSoon({ sellerId, itemId, itemName, daysLeft }) {
+        if (!sellerId) {
+            return;
+        }
+        await this.createNotification({
+            userIds: [sellerId],
+            type: NOTIFICATION_TYPES.CAROUSEL_EXIT_SOON,
+            title: 'Your item is leaving the carousel soon',
+            message: `${itemName || 'One of your items'} will rotate out of the featured carousel in ${daysLeft} days.`,
+            context: { itemId },
+        });
+    },
+
+    async notifyAdminsBuyerNoShow({ buyerId, buyerName, email, count }) {
+        const db = await connectToDatabase();
+        const usersCollection = db.collection('users');
+        const admins = await usersCollection.find({ role: 'admin' }).toArray();
+        const userIds = admins.map((admin) => admin._id.toString());
+        if (userIds.length === 0) {
+            return;
+        }
+        await this.createNotification({
+            userIds,
+            type: NOTIFICATION_TYPES.BUYER_FLAGGED,
+            title: 'Buyer missed pickup repeatedly',
+            message: `${buyerName || buyerId} missed pickup ${count} times. Review their account.`,
+            context: { buyerId, email, misses: count },
         });
     },
 

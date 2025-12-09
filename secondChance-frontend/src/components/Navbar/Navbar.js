@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { urlConfig } from '../../config';
+import './Navbar.css';
 
 export default function Navbar() {
     const {
@@ -12,32 +13,9 @@ export default function Navbar() {
         userRole,
         setUserRole,
         setCurrentUserId,
-        userStats,
-        setUserStats,
     } = useAppContext();
-    const [showBadgePanel, setShowBadgePanel] = useState(false);
 
     const navigate = useNavigate();
-    const fetchUserStats = useCallback(async () => {
-        const token = sessionStorage.getItem('auth-token');
-        if (!token) {
-            setUserStats(null);
-            return;
-        }
-        try {
-            const response = await fetch(`${urlConfig.backendUrl}/api/user-stats/me`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!response.ok) {
-                return;
-            }
-            const data = await response.json();
-            setUserStats(data);
-        } catch (err) {
-            console.error(err);
-        }
-    }, [setUserStats]);
-
     useEffect(() => {
         const authTokenFromSession = sessionStorage.getItem('auth-token');
         const nameFromSession = sessionStorage.getItem('name') || '';
@@ -57,22 +35,6 @@ export default function Navbar() {
         }
     }, [setIsLoggedIn, setUserName, setUserRole, setCurrentUserId]);
 
-    useEffect(() => {
-        const handler = () => {
-            fetchUserStats();
-        };
-        window.addEventListener('notifications-updated', handler);
-        return () => window.removeEventListener('notifications-updated', handler);
-    }, [fetchUserStats]);
-
-    useEffect(() => {
-        if (isLoggedIn) {
-            fetchUserStats();
-        } else {
-            setUserStats(null);
-        }
-    }, [isLoggedIn, fetchUserStats, setUserStats]);
-
     const handleLogout = () => {
         sessionStorage.removeItem('auth-token');
         sessionStorage.removeItem('name');
@@ -91,26 +53,31 @@ export default function Navbar() {
     };
     return (
         <>
-            <nav className="navbar navbar-expand-lg sticky-top" id='navbar_container'>
+            <nav className="navbar navbar-expand-lg navbar-container" id='navbar_container'>
                 <Link className="navbar-brand" to={`/app`}>
                     <span className="brand-mark">SC</span>
-                    <div className="d-flex flex-column">
-                        <span>SecondChance</span>
-                        <small className="text-muted" style={{ fontSize: '0.75rem', letterSpacing: '0.12em' }}>Give items a second life</small>
+                    <div className="brand-text">
+                        <span className="brand-title">SecondChance</span>
+                        <span className="brand-subtitle">Give items a second life</span>
                     </div>
                 </Link>
 
-                <button className="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <button 
+                    className="navbar-toggler" 
+                    type="button" 
+                    data-toggle="collapse" 
+                    data-target="#navbarNav" 
+                    aria-controls="navbarNav" 
+                    aria-expanded="false" 
+                    aria-label="Toggle navigation"
+                >
                     <span className="navbar-toggler-icon"></span>
                 </button>
 
                 <div className="collapse navbar-collapse" id="navbarNav">
-                    <ul className="navbar-nav align-items-lg-center gap-2">
+                    <ul className="navbar-nav">
                         <li className="nav-item">
-                            <Link className="nav-link nav-pill" to="/app">Items</Link>
-                        </li>
-                        <li className="nav-item">
-                            <Link className="nav-link nav-pill" to="/app/search">Search</Link>
+                            <Link className="nav-link nav-pill" to="/app">Home</Link>
                         </li>
                         {isLoggedIn && userRole === 'admin' && (
                             <li className="nav-item">
@@ -121,13 +88,13 @@ export default function Navbar() {
                         )}
                         {isLoggedIn ? (
                             <>
-                                <li className="nav-item d-flex align-items-center">
-                                    <span className="nav-link nav-pill" style={{ cursor: "pointer" }} onClick={profileSecton}>
+                                <li className="nav-item">
+                                    <span className="nav-link nav-pill user-greeting" style={{ cursor: "pointer" }} onClick={profileSecton}>
                                         Hey {userName || 'Friend'}
+                                        {userRole === 'admin' && (
+                                            <span className="chip-admin">Admin</span>
+                                        )}
                                     </span>
-                                    {userRole === 'admin' && (
-                                        <span className="chip-admin">Admin</span>
-                                    )}
                                 </li>
                                 <li className="nav-item">
                                     <button className="btn btn-outline-light nav-cta" onClick={handleLogout}>Logout</button>
@@ -146,28 +113,6 @@ export default function Navbar() {
                     </ul>
                 </div>
             </nav>
-            {showBadgePanel && (
-                <div className="badge-panel-backdrop" onClick={() => setShowBadgePanel(false)}>
-                    <div className="badge-panel" onClick={(e) => e.stopPropagation()}>
-                        <h4>Your badges</h4>
-                        <p className="text-muted mb-3">{userStats?.sellerLevelLabel}</p>
-                        {userStats?.badges?.length ? (
-                            <div className="badge-list">
-                                {userStats.badges.map((badge) => (
-                                    <span key={badge} className="badge-chip">
-                                        {badge.replace(/-/g, ' ')}
-                                    </span>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-muted">No badges yet. Keep sharing items to earn more.</p>
-                        )}
-                        <button className="btn btn-modern-secondary w-100 mt-3" onClick={() => setShowBadgePanel(false)}>
-                            Close
-                        </button>
-                    </div>
-                </div>
-            )}
         </>
     );
 }

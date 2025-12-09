@@ -1,15 +1,38 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {urlConfig} from '../../config';
 import { useAppContext } from '../../context/AppContext';
 import NewArrivalsCarousel from '../NewArrivalsCarousel/NewArrivalsCarousel';
 
+const categoryOptions = [
+    'Furniture',
+    'Tools',
+    'Electronics',
+    'Clothing & Accessories',
+    'Toys',
+    'Vehicles & Transportation',
+    'Books & Media',
+    'Pets & Pet Supplies',
+    'Other',
+];
+
+const conditionOptions = ['New', 'Like New', 'Older'];
+
 function MainPage() {
     const [items, setItems] = useState([]);
     const [statusMessage, setStatusMessage] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('');
+    const [selectedCondition, setSelectedCondition] = useState('');
+    const [ageRange, setAgeRange] = useState(6);
+    const [searchCity, setSearchCity] = useState('');
+    const [searchArea, setSearchArea] = useState('');
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [searchError, setSearchError] = useState('');
     const navigate = useNavigate();
     const { isLoggedIn } = useAppContext();
+    const searchSectionRef = useRef(null);
 
     const filterAvailableItems = useCallback(
         (list = []) => list.filter((item) => (item.status || 'available') === 'available'),
@@ -32,6 +55,45 @@ function MainPage() {
     useEffect(() => {
         fetchItems();
     }, [fetchItems]);
+
+    const handleSearch = async () => {
+        setSearchLoading(true);
+        setSearchError('');
+        try {
+            const params = new URLSearchParams();
+            if (searchQuery.trim()) params.append('name', searchQuery.trim());
+            if (selectedCategory) params.append('category', selectedCategory);
+            if (selectedCondition) params.append('condition', selectedCondition);
+            if (searchCity.trim()) params.append('city', searchCity.trim());
+            if (searchArea.trim()) params.append('area', searchArea.trim());
+
+            const response = await fetch(`${urlConfig.backendUrl}/api/secondchance/search?${params.toString()}`);
+            if (!response.ok) {
+                throw new Error('Search failed');
+            }
+            const data = await response.json();
+            setItems(filterAvailableItems(data));
+            setSearchError('');
+        } catch (error) {
+            setSearchError(error.message || 'Unable to search items right now.');
+        } finally {
+            setSearchLoading(false);
+        }
+    };
+
+    const handleResetFilters = () => {
+        setSearchQuery('');
+        setSelectedCategory('');
+        setSelectedCondition('');
+        setSearchCity('');
+        setSearchArea('');
+        setSearchError('');
+        fetchItems();
+    };
+
+    const scrollToSearch = () => {
+        searchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
 
     const goToDetailsPage = (itemId) => {
         navigate(`/app/item/${itemId}`);
@@ -75,8 +137,15 @@ function MainPage() {
     };
 
     const formatDate = (timestamp) => {
+        if (!timestamp) {
+            return 'Unknown date';
+        }
         const date = new Date(timestamp * 1000);
-        return date.toLocaleString('default', { month: 'long', day: 'numeric', year: 'numeric' });
+        return date.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: '2-digit',
+            year: '2-digit',
+        });
     };
 
     const getConditionClass = (condition) => {
@@ -122,10 +191,97 @@ function MainPage() {
                 </p>
                 <div className="hero-actions">
                     <button className="btn-primary-modern" onClick={handleAddItem}>Post an Item</button>
-                    <button className="btn-ghost-modern" onClick={() => navigate('/app/search')}>Explore catalog</button>
+                    <button className="btn-ghost-modern" onClick={scrollToSearch}>Advanced search</button>
                 </div>
             </div>
             <NewArrivalsCarousel />
+            <section className="search-panel glass-panel mb-4" ref={searchSectionRef}>
+                <div className="search-panel-header">
+                    <div>
+                        <h2 className="mb-1">Find exactly what you need</h2>
+                        <p className="text-muted mb-0">Filter by category, condition, or location.</p>
+                    </div>
+                    <div className="d-flex gap-2">
+                        <button
+                            className="btn btn-modern-secondary"
+                            onClick={handleResetFilters}
+                            disabled={searchLoading}
+                        >
+                            Reset
+                        </button>
+                        <button
+                            className="btn btn-primary-modern"
+                            onClick={handleSearch}
+                            disabled={searchLoading}
+                        >
+                            {searchLoading ? 'Searching...' : 'Search'}
+                        </button>
+                    </div>
+                </div>
+                {searchError && <div className="alert alert-danger mb-3">{searchError}</div>}
+                <div className="search-grid">
+                    <div className="form-group">
+                        <label htmlFor="searchQuery">Item name</label>
+                        <input
+                            id="searchQuery"
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search by item name..."
+                        />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="categorySelect">Category</label>
+                        <select
+                            id="categorySelect"
+                            value={selectedCategory}
+                            onChange={(e) => setSelectedCategory(e.target.value)}
+                        >
+                            <option value="">All categories</option>
+                            {categoryOptions.map((option) => (
+                                <option key={option} value={option}>
+                                    {option}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="conditionSelect">Condition</label>
+                        <select
+                            id="conditionSelect"
+                            value={selectedCondition}
+                            onChange={(e) => setSelectedCondition(e.target.value)}
+                        >
+                            <option value="">All conditions</option>
+                            {conditionOptions.map((option) => (
+                                <option key={option} value={option}>
+                                    {option}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="searchCity">City</label>
+                        <input
+                            id="searchCity"
+                            type="text"
+                            value={searchCity}
+                            onChange={(e) => setSearchCity(e.target.value)}
+                            placeholder="Enter city name..."
+                        />
+                    </div>
+                    <div className="form-group">
+                        <label htmlFor="searchArea">Area / neighborhood</label>
+                        <input
+                            id="searchArea"
+                            type="text"
+                            value={searchArea}
+                            onChange={(e) => setSearchArea(e.target.value)}
+                            placeholder="Optional: neighborhood or area"
+                        />
+                    </div>
+                </div>
+            </section>
             <div className="recommendation-section">
                 <div className="recommendation-header">
                     <h2>Featured picks</h2>
@@ -135,9 +291,9 @@ function MainPage() {
         <div className="container-fluid px-0">
             {statusMessage && <div className="alert alert-success">{statusMessage}</div>}
             {errorMessage && <div className="alert alert-danger">{errorMessage}</div>}
-            <div className="row">
+            <div className="row g-3">
                 {items.map((item) => (
-                    <div key={item.id} className="col-md-4 mb-4">
+                    <div key={item.id} className="col-12 col-sm-6 col-lg-4 col-xl-3">
                         <div className="card product-card h-100 d-flex flex-column">
                             <div className="image-placeholder">
                                 {item.image ? (
@@ -166,20 +322,20 @@ function MainPage() {
                                     </p>
                                 )}
                             </div>
-                            <div className="card-footer bg-white border-0">
-                                <button onClick={() => goToDetailsPage(item.id)} className="btn btn-primary w-100 mb-2">
+                            <div className="card-footer border-0">
+                                <button onClick={() => goToDetailsPage(item.id)} className="btn btn-primary-modern w-100 mb-2">
                                     View Details
                                 </button>
                                 {(item.status || 'available') === 'available' && Number(item.price || 0) === 0 && (
                                     <button
                                         onClick={() => handleReserve(item.id)}
-                                        className="btn btn-outline-success w-100"
+                                        className="btn btn-ghost-modern w-100"
                                     >
                                         Reserve for 10 hours
                                     </button>
                                 )}
                                 {(item.status || 'available') === 'available' && Number(item.price || 0) > 0 && (
-                                    <small className="text-muted d-block text-center">
+                                    <small className="text-subtle d-block text-center">
                                         Message the seller to arrange payment.
                                     </small>
                                 )}

@@ -1,38 +1,104 @@
 import React, { useEffect, useState } from 'react';
-import {useNavigate } from 'react-router-dom';
-import { urlConfig } from "../../config"
+import { useNavigate } from 'react-router-dom';
+import { urlConfig } from "../../config";
 import { useAppContext } from '../../context/AppContext';
+import './ItemPage.css';
+
+const MAX_IMAGES = 5;
+const CATEGORY_OPTIONS = [
+    'Furniture',
+    'Tools',
+    'Electronics',
+    'Clothing & Accessories',
+    'Toys',
+    'Vehicles & Transportation',
+    'Books & Media',
+    'Pets & Pet Supplies',
+    'Other',
+];
+const cityOptions = [
+    'Jerusalem',
+    'Tel Aviv-Yafo',
+    'Haifa',
+    'Rishon LeZion',
+    'Petah Tikva',
+    'Ashdod',
+    'Netanya',
+    'Beer Sheva',
+    'Holon',
+    'Bnei Brak',
+    'Rehovot',
+    'Bat Yam',
+    'Herzliya',
+    'Kfar Saba',
+    'Raanana',
+    'Ramat Gan',
+    'Modiin',
+    'Hadera',
+    'Ashkelon',
+    'Nazareth',
+    'Tiberias',
+    'Eilat',
+    'Safed',
+    'Kiryat Ono',
+    'Givatayim'
+];
 
 function ItemPage() {
     const navigate = useNavigate();
     const [name, setName] = useState('');
-    const [category, setCategory] = useState('Living');
+    const [category, setCategory] = useState(CATEGORY_OPTIONS[0]);
     const [condition, setCondition] = useState('New');
-    const [zipcode, setZipcode] = useState('10110');
-    const [age_days, setAge_days] = useState(0);
     const [description, setDescription] = useState('');
     const [city, setCity] = useState('');
     const [area, setArea] = useState('');
-    const [mapUrl, setMapUrl] = useState('');
     const [price, setPrice] = useState(0);
-    const [lat, setLat] = useState('');
-    const [lng, setLng] = useState('');
-    const [pickupLocation, setPickupLocation] = useState({
-        label: '',
-        city: '',
-        area: '',
-        address: '',
-        lat: '',
-        lng: '',
-    });
     const [message, setMessage] = useState(null);
+    const [selectedImages, setSelectedImages] = useState([]);
+    const [imageTip, setImageTip] = useState('Upload at least 2 clear photos to boost trust.');
+    const [enableShipping, setEnableShipping] = useState(false);
+    const [pickupAddress, setPickupAddress] = useState('');
+    const [pickupCity, setPickupCity] = useState('');
+    const [pickupArea, setPickupArea] = useState('');
+    const [shippingBasePrice, setShippingBasePrice] = useState(10);
+    const [shippingPricePerKm, setShippingPricePerKm] = useState(2);
     const { isLoggedIn } = useAppContext();
 
     useEffect(() => {
         if (!isLoggedIn) {
-            navigate('/app/login')
+            navigate('/app/login');
         }
-    });
+    }, [isLoggedIn, navigate]);
+
+    const handleImageChange = (event) => {
+        const incoming = Array.from(event.target.files || []);
+        if (!incoming.length) {
+            return;
+        }
+        setSelectedImages((prev) => {
+            const merged = [...prev];
+            const seen = new Set(prev.map((file) => `${file.name}-${file.lastModified}`));
+            incoming.forEach((file) => {
+                const key = `${file.name}-${file.lastModified}`;
+                if (merged.length < MAX_IMAGES && !seen.has(key)) {
+                    merged.push(file);
+                    seen.add(key);
+                }
+            });
+            const count = merged.length;
+            if (!count) {
+                setImageTip('Upload at least 2 clear photos to boost trust.');
+            } else if (count === 1) {
+                setImageTip('Tip: add another photo so buyers can see more angles.');
+            } else if (count >= MAX_IMAGES) {
+                setImageTip(`Showing the best ${MAX_IMAGES} photos.`);
+            } else {
+                setImageTip(`${count} photos selected.`);
+            }
+            return merged;
+        });
+        event.target.value = '';
+    };
 
     const handleAddItem = async () => {
       const authToken = sessionStorage.getItem('auth-token');
@@ -41,45 +107,37 @@ function ItemPage() {
         return;
       }
 
-      // Get the form data
-      const formData = new FormData();
-      const file = document.getElementById('file').files[0];
-      if (file) {
-        formData.append('file', file);
-        formData.append('image', `/images/${file.name}`);
+      if (!selectedImages.length) {
+        setMessage('Please upload at least one image.');
+        setTimeout(() => setMessage(null), 3000);
+        return;
       }
-      formData.append('name', document.getElementById('name').value);
+
+      const formData = new FormData();
+      selectedImages.slice(0, MAX_IMAGES).forEach((file, index) => {
+        formData.append('images', file);
+        if (index === 0) {
+          formData.append('image', `/images/${file.name}`);
+        }
+      });
+      formData.append('name', name);
       formData.append('category', category);
       formData.append('condition', condition);
-      formData.append('zipcode', document.getElementById('zipcode').value);
-      let age_days = document.getElementById('age_days').value;
-      formData.append('age_days', age_days);
-      formData.append('age_years', (age_days/365).toFixed(2));
-      formData.append('description', document.getElementById('description').value);
+      formData.append('zipcode', '');
+      formData.append('age_days', 0);
+      formData.append('age_years', 0);
+      formData.append('description', description);
       formData.append('comments', []);
       formData.append('city', city);
       formData.append('area', area);
-      formData.append('mapUrl', mapUrl);
-      if (lat !== '' && lat !== null && lat !== undefined) {
-        formData.append('lat', lat);
-      }
-      if (lng !== '' && lng !== null && lng !== undefined) {
-        formData.append('lng', lng);
-      }
+      formData.append('mapUrl', '');
       formData.append('price', price);
-      const pickup = pickupLocation.label && pickupLocation.city && pickupLocation.address
-          ? [{
-              label: pickupLocation.label.trim(),
-              city: pickupLocation.city.trim(),
-              area: pickupLocation.area.trim(),
-              address: pickupLocation.address.trim(),
-              lat: pickupLocation.lat ? Number(pickupLocation.lat) : undefined,
-              lng: pickupLocation.lng ? Number(pickupLocation.lng) : undefined,
-          }]
-          : [];
-      if (pickup.length) {
-        formData.append('pickupLocations', JSON.stringify(pickup));
-      }
+      formData.append('enableShipping', enableShipping);
+      formData.append('pickupAddress', pickupAddress);
+      formData.append('pickupCity', pickupCity);
+      formData.append('pickupArea', pickupArea);
+      formData.append('shippingBasePrice', shippingBasePrice);
+      formData.append('shippingPricePerKm', shippingPricePerKm);
 
           try {
             let url = `${urlConfig.backendUrl}/api/secondchance/items`;
@@ -96,10 +154,12 @@ function ItemPage() {
                   throw new Error('Network response was not ok');
               }
               const data = await response.json();
-              if(data){
-                setMessage("Item added!")
+              if (data) {
+                setMessage("Item added!");
+                setSelectedImages([]);
+                setImageTip('Upload at least 2 clear photos to boost trust.');
                 setTimeout(() => {
-                    setMessage("")
+                    setMessage("");
                     navigate("/");
                 }, 500);
               }
@@ -108,210 +168,211 @@ function ItemPage() {
           }
   }
 
-    const handlePickupLocationChange = (field, value) => {
-        setPickupLocation((prev) => ({
-            ...prev,
-            [field]: value,
-        }));
-    };
-
     return (
-      <div className="container mt-5">
-      <div className="row justify-content-center">
-          <div className="col-md-6 col-lg-4">
-              <div className="register-card p-4 border rounded">
-                  <h2 className="text-center mb-4 font-weight-bold">Add Item</h2>
-                  <div className="mb-3">
-                      <label htmlFor="name" className="form-label">Name</label>
-                      <input
-                          id="name"
-                          type="text"
-                          className="form-control"
-                          placeholder="Enter Item Name"
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                      />
-                  </div>
-
-                  <div className="d-flex flex-column">
-                            {/* Category Dropdown */}
-                            <label htmlFor="category">Category</label>
-                            <select id="category" className="form-control my-1" onChange={(e) => setCategory(e.target.value)}>
-
-                                <option key="Living" value="Living">Living</option>
-                                <option key="Bedroom" value="Bedroom">Bedroom</option>
-                                <option key="Bathroom" value="Bathroom">Bathroom</option>
-                                <option key="Kitchen" value="Kitchen">Kitchen</option>
-                                <option key="Office" value="Office">Office</option>
-                            </select>
-
-                            {/* Condition Dropdown */}
-                            <label htmlFor="condition">Condition</label>
-                            <select id="condition" className="form-control my-1" onChange={(e) => setCondition(e.target.value)}>
-                                <option key="New" value="New">New</option>
-                                <option key="Like New" value="Like New">Like New</option>
-                                <option key="Older" value="Older">Older</option>
-                            </select>
-                  </div>
-
-                  <div className="mb-3">
-                      <label htmlFor="zipcode" className="form-label">Zipcode</label>
-                      <input
-                          id="zipcode"
-                          type="text"
-                          className="form-control"
-                          placeholder="Enter the Zipcode"
-                          value={zipcode}
-                          onChange={(e) => setZipcode(e.target.value)}
-                      />
-                  </div>
-
-                  <div className="mb-3">
-                      <label htmlFor="age_days" className="form-label">Age in days</label>
-                      <input
-                          id="age_days"
-                          type="text"
-                          className="form-control"
-                          placeholder="Enter the  Age in days"
-                          value={age_days}
-                          onChange={(e) => setAge_days(e.target.value)}
-                      />
-                  </div>
-
-                  <div className="mb-3">
-                      <label htmlFor="description" className="form-label">Description</label>
-                      <textarea
-                          id="description"
-                          cols="2"
-                          className="form-control"
-                          placeholder="Enter the description"
-                          value={description}
-                          onChange={(e) => setDescription(e.target.value)}
-                      />
-                  </div>
-                  <div className="mb-3">
-                      <label htmlFor="price" className="form-label">Price (0 = Free)</label>
-                      <input
-                          id="price"
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          className="form-control"
-                          placeholder="Enter the price"
-                          value={price}
-                          onChange={(e) => setPrice(e.target.value)}
-                      />
-                  </div>
-                  <div className="mb-3">
-                      <label htmlFor="city" className="form-label">City</label>
-                      <input
-                          id="city"
-                          type="text"
-                          className="form-control"
-                          placeholder="Enter the city"
-                          value={city}
-                          onChange={(e) => setCity(e.target.value)}
-                      />
-                  </div>
-                  <div className="mb-3">
-                      <label htmlFor="area" className="form-label">Area/Neighborhood</label>
-                      <input
-                          id="area"
-                          type="text"
-                          className="form-control"
-                          placeholder="Enter the area"
-                          value={area}
-                          onChange={(e) => setArea(e.target.value)}
-                      />
-                  </div>
-                  <div className="mb-3">
-                      <label htmlFor="mapUrl" className="form-label">Map Link (optional)</label>
-                      <input
-                          id="mapUrl"
-                          type="url"
-                          className="form-control"
-                          placeholder="https://maps.google.com/..."
-                          value={mapUrl}
-                          onChange={(e) => setMapUrl(e.target.value)}
-                      />
-                  </div>
-                  <div className="mb-3">
-                      <label className="form-label mb-2">Pickup location</label>
-                      <div className="border rounded p-3">
-                          <div className="mb-2">
-                              <label className="form-label">Label</label>
-                              <input
-                                  type="text"
-                                  className="form-control"
-                                  placeholder="Home, Storage, etc."
-                                  value={pickupLocation.label}
-                                  onChange={(e) => handlePickupLocationChange('label', e.target.value)}
-                              />
-                          </div>
-                          <div className="row">
-                              <div className="col">
-                                  <label className="form-label">City</label>
-                                  <input
-                                      type="text"
-                                      className="form-control"
-                                      value={pickupLocation.city}
-                                      onChange={(e) => handlePickupLocationChange('city', e.target.value)}
-                                  />
-                              </div>
-                              <div className="col">
-                                  <label className="form-label">Area / Neighborhood</label>
-                                  <input
-                                      type="text"
-                                      className="form-control"
-                                      value={pickupLocation.area}
-                                      onChange={(e) => handlePickupLocationChange('area', e.target.value)}
-                                  />
-                              </div>
-                          </div>
-                          <div className="mb-2 mt-2">
-                              <label className="form-label">Address</label>
-                              <input
-                                  type="text"
-                                  className="form-control"
-                                  placeholder="123 Main St"
-                                  value={pickupLocation.address}
-                                  onChange={(e) => handlePickupLocationChange('address', e.target.value)}
-                              />
-                          </div>
-                          <div className="row">
-                              <div className="col">
-                                  <label className="form-label">Latitude (optional)</label>
-                                  <input
-                                      type="number"
-                                      step="0.000001"
-                                      className="form-control"
-                                      value={pickupLocation.lat}
-                                      onChange={(e) => handlePickupLocationChange('lat', e.target.value)}
-                                  />
-                              </div>
-                              <div className="col">
-                                  <label className="form-label">Longitude (optional)</label>
-                                  <input
-                                      type="number"
-                                      step="0.000001"
-                                      className="form-control"
-                                      value={pickupLocation.lng}
-                                      onChange={(e) => handlePickupLocationChange('lng', e.target.value)}
-                                  />
-                              </div>
-                          </div>
-                      </div>
-                  </div>
-                  <input style={{padding:'.5cm'}} type="file" id="file" name="file" accept=".jpg, .png, .gif"/>
-
-                  <button className="btn btn-primary w-100 mb-3" onClick={handleAddItem}>Add Item</button>
-
-                  <span style={{color:'green',height:'.5cm',display:'block',fontStyle:'italic',fontSize:'12px'}}>{message}</span>
-
-              </div>
+      <div className="add-item-page">
+        <section className="add-item-hero">
+          <div>
+            <p className="eyebrow">Share your find</p>
+            <h1>Add a new item</h1>
+            <p>Give it a short description, set a fair price (0 for free) and help it find a new home.</p>
           </div>
+        </section>
+
+      <div className="add-item-form">
+        <div className="add-item-sections">
+          <div className="form-column">
+            <div className="column-grid">
+              <div className="form-group">
+                <label htmlFor="name">Item name</label>
+                <input
+                  id="name"
+                  type="text"
+                  placeholder="Enter item name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="category">Category</label>
+                <select
+                  id="category"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  {CATEGORY_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label htmlFor="condition">Condition</label>
+                <select
+                  id="condition"
+                  value={condition}
+                  onChange={(e) => setCondition(e.target.value)}
+                >
+                  <option value="New">New</option>
+                  <option value="Like New">Like New</option>
+                  <option value="Older">Older</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label htmlFor="price">Price (0 = Free)</label>
+                <input
+                  id="price"
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="Enter price"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="city">City</label>
+                <input
+                  id="city"
+                  type="text"
+                  list="city-options"
+                  placeholder="Select or type a city"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                />
+                <datalist id="city-options">
+                  {cityOptions.map((option) => (
+                    <option key={option} value={option} />
+                  ))}
+                </datalist>
+              </div>
+              <div className="form-group">
+                <label htmlFor="area">Area / neighborhood</label>
+                <input
+                  id="area"
+                  type="text"
+                  placeholder="Optional area or neighborhood"
+                  value={area}
+                  onChange={(e) => setArea(e.target.value)}
+                />
+              </div>
+              <div className="form-group form-full">
+                <label htmlFor="description">Description</label>
+                <textarea
+                  id="description"
+                  rows="4"
+                  placeholder="Tell buyers about the item"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+              <div className="form-group form-full">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={enableShipping}
+                    onChange={(e) => setEnableShipping(e.target.checked)}
+                    style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                  />
+                  <span>Enable shipping (delivery available)</span>
+                </label>
+              </div>
+              {enableShipping && (
+                <>
+                  <div className="form-group form-full">
+                    <label htmlFor="pickupAddress">Pickup Address (Full address)</label>
+                    <input
+                      id="pickupAddress"
+                      type="text"
+                      placeholder="Enter full pickup address"
+                      value={pickupAddress}
+                      onChange={(e) => setPickupAddress(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="pickupCity">Pickup City</label>
+                    <input
+                      id="pickupCity"
+                      type="text"
+                      list="pickup-city-options"
+                      placeholder="Pickup city"
+                      value={pickupCity}
+                      onChange={(e) => setPickupCity(e.target.value)}
+                    />
+                    <datalist id="pickup-city-options">
+                      {cityOptions.map((option) => (
+                        <option key={option} value={option} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="pickupArea">Pickup Area / Neighborhood</label>
+                    <input
+                      id="pickupArea"
+                      type="text"
+                      placeholder="Pickup area"
+                      value={pickupArea}
+                      onChange={(e) => setPickupArea(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="shippingBasePrice">Base Shipping Price ($)</label>
+                    <input
+                      id="shippingBasePrice"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Base price"
+                      value={shippingBasePrice}
+                      onChange={(e) => setShippingBasePrice(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="shippingPricePerKm">Price Per Kilometer ($)</label>
+                    <input
+                      id="shippingPricePerKm"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Price per km"
+                      value={shippingPricePerKm}
+                      onChange={(e) => setShippingPricePerKm(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="form-column form-column-secondary">
+            <h3>Photos</h3>
+            <p>Add up to 5 clear photos. Show different angles so buyers can trust you.</p>
+            <label className="form-label" htmlFor="images">Upload photos</label>
+            <input
+              type="file"
+              id="images"
+              multiple
+              accept=".jpg, .jpeg, .png, .gif"
+              onChange={handleImageChange}
+            />
+            {imageTip && <small className="image-tip">{imageTip}</small>}
+            {selectedImages.length > 0 && (
+              <ul className="image-preview-list">
+                {selectedImages.map((file) => (
+                  <li key={file.name}>{file.name}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+          <div className="form-actions">
+            <button type="button" onClick={handleAddItem}>
+              Publish item
+            </button>
+            {message && <span className="form-message">{message}</span>}
+          </div>
+        </div>
       </div>
-  </div>      
     );
 }
 
