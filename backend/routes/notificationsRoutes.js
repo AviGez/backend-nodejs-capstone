@@ -21,11 +21,11 @@ const NOTIFICATION_TYPES = {
     CAROUSEL_EXIT_SOON: 'carouselExitSoon',
     BUYER_FLAGGED: 'buyerFlagged',
 };
-
+// פונקציה לנירמול סוג התראה
 const normalizeType = (type) => {
     return Object.values(NOTIFICATION_TYPES).includes(type) ? type : NOTIFICATION_TYPES.FEEDBACK;
 };
-
+// קבלת התראות של המשתמש
 router.get('/', authenticate, async (req, res, next) => {
     try {
         const db = await connectToDatabase();
@@ -41,7 +41,7 @@ router.get('/', authenticate, async (req, res, next) => {
         next(e);
     }
 });
-
+// סימון התראות כנקראות
 router.post('/mark-read', authenticate, async (req, res, next) => {
     try {
         const { ids = [] } = req.body;
@@ -78,7 +78,7 @@ router.post('/mark-read', authenticate, async (req, res, next) => {
         next(e);
     }
 });
-
+// מחיקת התראה ספציפית
 router.delete('/:id', authenticate, async (req, res, next) => {
     try {
         const db = await connectToDatabase();
@@ -102,7 +102,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
         next(e);
     }
 });
-
+// שמירת העדפות התראות של המשתמש
 router.post('/preferences', authenticate, async (req, res, next) => {
     try {
         const { categories = [] } = req.body;
@@ -120,7 +120,7 @@ router.post('/preferences', authenticate, async (req, res, next) => {
         next(e);
     }
 });
-
+// קבלת העדפות התראות של המשתמש
 router.get('/preferences', authenticate, async (req, res, next) => {
     try {
         const db = await connectToDatabase();
@@ -132,7 +132,9 @@ router.get('/preferences', authenticate, async (req, res, next) => {
         next(e);
     }
 });
-
+// מחלקת שירות התראות
+// מספקת פונקציות ליצירת התראות ממודולים אחרים
+// לדוגמה: מודול פריטים, צ'אטים, משוב וכו'
 const notificationService = {
     async createNotification({ userIds, type, title, message, context = {} }) {
         if (!Array.isArray(userIds) || userIds.length === 0) {
@@ -155,7 +157,7 @@ const notificationService = {
 
         await notificationsCollection.insertMany(docs);
     },
-
+// התראה על פריט חדש בקטגוריה המועדפת על המשתמש
     async notifyNewItemInCategory({ category, itemId, itemName }) {
         const db = await connectToDatabase();
         const prefsCollection = db.collection('notificationPreferences');
@@ -175,7 +177,7 @@ const notificationService = {
             context: { itemId },
         });
     },
-
+// התראה למנהלים על פריט חדש שממתין לאישור
     async notifyAdminsNewItem({ itemId, itemName }) {
         const db = await connectToDatabase();
         const usersCollection = db.collection('users');
@@ -194,7 +196,7 @@ const notificationService = {
             context: { itemId },
         });
     },
-
+// התראה על משוב חדש שהתקבל
     async notifyFeedback({ userId, fromUserName, itemName, feedbackId }) {
         await this.createNotification({
             userIds: [userId],
@@ -204,7 +206,7 @@ const notificationService = {
             context: { feedbackId },
         });
     },
-
+// התראה על שחרור פריט שמור
     async notifyItemReleased({ userId, itemId, itemName }) {
         await this.createNotification({
             userIds: [userId],
@@ -214,7 +216,7 @@ const notificationService = {
             context: { itemId },
         });
     },
-
+// התראה על מכירת פריט
     async notifyItemSold({ sellerId, itemId, itemName, buyerId }) {
         if (!sellerId) {
             return;
@@ -227,7 +229,7 @@ const notificationService = {
             context: { itemId, buyerId },
         });
     },
-
+// התראה על בקשת אישור איסוף פריט
     async notifyPickupApprovalRequest({ sellerId, itemId, itemName, buyerId }) {
         if (!sellerId) {
             return;
@@ -240,7 +242,7 @@ const notificationService = {
             context: { itemId, buyerId },
         });
     },
-
+// התראה על פריט שעומד לצאת מהקרוסלה
     async notifyCarouselExitSoon({ sellerId, itemId, itemName, daysLeft }) {
         if (!sellerId) {
             return;
@@ -253,7 +255,7 @@ const notificationService = {
             context: { itemId },
         });
     },
-
+// התראה על קונה שהחמיץ איסוף מספר פעמים
     async notifyAdminsBuyerNoShow({ buyerId, buyerName, email, count }) {
         const db = await connectToDatabase();
         const usersCollection = db.collection('users');
@@ -270,7 +272,11 @@ const notificationService = {
             context: { buyerId, email, misses: count },
         });
     },
-
+    // התראה על קבלת תגמול (badge)
+    // משמשת להודיע למשתמש על קבלת תגמול חדש
+    // לדוגמה: badge על פעילות, הישגים וכו'
+    // מקבלת מזהה משתמש, מזהה תגמול ותווית התגמול
+    // לא מחזירה ערך
     async notifyBadgeEarned({ userId, badgeId, label }) {
         if (!userId || !badgeId) {
             return;
@@ -285,6 +291,7 @@ const notificationService = {
     },
 };
 
+// נקודות קצה לניהול התראות משתמשים
 router.get('/admin/unread', authenticate, authorizeAdmin, async (req, res, next) => {
     try {
         const db = await connectToDatabase();

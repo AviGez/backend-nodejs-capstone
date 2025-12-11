@@ -1,0 +1,35 @@
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.stat-card {
+  padding: 0.65rem;
+  border-radius: 16px;
+}
+
+.chart-card {
+  border-radius: 20px;
+  padding: 0.65rem;
+}
+
+.status-list,
+.category-list,
+.recent-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.status-list li,
+.category-list li,
+.recent-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+

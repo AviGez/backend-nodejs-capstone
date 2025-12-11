@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:6
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+
+  backend:
+    build:
+      context: ./backend
+    depends_on:
+      - mongo
+    environment:
+      NODE_ENV: production
+      PORT: 3060
+      MONGO_URL: mongodb://root:example@mongo:27017/secondChance?authSource=admin
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:3000}
+      SOCKET_ORIGIN: ${SOCKET_ORIGIN:-*}
+    ports:
+      - "3060:3060"
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      - backend
+    environment:
+      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:3060}
+    ports:
+      - "3000:80"
+
+volumes:
+  mongo_data:
+

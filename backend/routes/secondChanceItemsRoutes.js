@@ -53,7 +53,7 @@ const ensureApprovalsIndex = async (db) => {
     );
     approvalsIndexEnsured = true;
 };
-
+// קבלת מסמך אישור פריט
 const getApprovalDoc = async (db, itemId, buyerId, sellerId) => {
     const approvalsCollection = db.collection('itemApprovals');
     return approvalsCollection.findOne({ itemId, buyerId, sellerId });
@@ -172,7 +172,7 @@ const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
 };
-
+// חישוב ניקוד התאמה לפי מיקום (עיר ואזור)
 const computeCityMatchScore = (location, buyerCity = '', buyerArea = '') => {
     let score = 0;
     if (
@@ -242,7 +242,7 @@ router.get('/', async (req, res, next) => {
         next(e);
     }
 });
-
+// נקודת קצה: החזרת פריטי הקרוסלה
 router.get('/carousel', async (req, res, next) => {
     try {
         const db = await connectToDatabase();
@@ -294,7 +294,7 @@ router.get('/carousel', async (req, res, next) => {
     }
 });
 
-// Get currently reserved items for logged-in user
+// נקודת קצה: החזרת פריטי שמורים נוכחיים למשתמש המחובר
 router.get('/reservations/me', authenticate, async (req, res, next) => {
     try {
         const db = await connectToDatabase();
@@ -311,7 +311,7 @@ router.get('/reservations/me', authenticate, async (req, res, next) => {
         next(e);
     }
 });
-
+// נקודת קצה: החזרת כל הפריטים של המשתמש המחובר
 router.get('/mine', authenticate, async (req, res, next) => {
     try {
         const db = await connectToDatabase();
@@ -331,7 +331,7 @@ router.get('/mine', authenticate, async (req, res, next) => {
     }
 });
 
-// Admin - high level statistics
+// נקודת קצה: סטטיסטיקות מנהל עבור לוח בקרה
 router.get('/admin/stats', authenticate, authorizeAdmin, async (req, res, next) => {
     try {
         const db = await connectToDatabase();
@@ -441,7 +441,7 @@ router.get('/admin/stats', authenticate, authorizeAdmin, async (req, res, next) 
     }
 });
 
-// Admin - get all items with owner details
+// נקודת קצה: החזרת כל הפריטים (למנהל)
 router.get('/admin/all', authenticate, authorizeAdmin, async (req, res, next) => {
     try {
         const db = await connectToDatabase();
@@ -488,7 +488,7 @@ router.get('/admin/all', authenticate, authorizeAdmin, async (req, res, next) =>
     }
 });
 
-// Get a single secondChanceItem by ID
+// נקודת קצה: החזרת פריט בודד לפי מזהה
 router.get('/:id', async (req, res, next) => {
     try {
         const db = await connectToDatabase();
@@ -508,7 +508,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 
-// Add a new item
+// הוספת פריט חדש
 const MAX_IMAGES_PER_ITEM = 5;
 
 router.post('/', authenticate, upload.array('images', MAX_IMAGES_PER_ITEM), async (req, res, next) => {
@@ -581,7 +581,7 @@ router.post('/', authenticate, upload.array('images', MAX_IMAGES_PER_ITEM), asyn
     }
 });
 
-// Update an existing item
+// עדכון פריט קיים
 router.put('/:id', authenticate, async(req, res,next) => {
     try {
         const db = await connectToDatabase();
@@ -652,7 +652,7 @@ router.put('/:id', authenticate, async(req, res,next) => {
         next(e);
     }
 });
-
+// בקשת אישור לאיסוף פריט
 router.post('/:id/request-approval', authenticate, async (req, res, next) => {
     try {
         const db = await connectToDatabase();
@@ -700,7 +700,7 @@ router.post('/:id/request-approval', authenticate, async (req, res, next) => {
         next(e);
     }
 });
-
+// אישור בקשת איסוף פריט על ידי המוכר
 router.post('/:id/approve-buyer', authenticate, async (req, res, next) => {
     try {
         const { buyerId } = req.body;
@@ -800,7 +800,7 @@ router.post('/:id/approve-buyer', authenticate, async (req, res, next) => {
         next(e);
     }
 });
-
+// נקודת קצה: קבלת מידע מאובטח על פריט בהתאם לתפקיד המשתמש
 router.get('/:id/secure', authenticate, async (req, res, next) => {
     try {
         const db = await connectToDatabase();
@@ -899,7 +899,7 @@ router.get('/:id/secure', authenticate, async (req, res, next) => {
         next(e);
     }
 });
-
+// נקודת קצה: קבלת אפשרויות איסוף פריט עם סינון ומיון
 router.get('/:id/pickup-options', authenticate, async (req, res, next) => {
     try {
         const { lat, lng, city: buyerCity = '', area: buyerArea = '' } = req.query || {};
@@ -981,7 +981,7 @@ router.get('/:id/pickup-options', authenticate, async (req, res, next) => {
             const scoreB = b.cityScore || 0;
             return scoreB - scoreA;
         });
-
+        // הגבלת מספר מיקומי האיסוף המוחזרים
         const result = enriched.slice(0, MAX_PICKUP_LOCATIONS).map(({ location, distanceKm }) => {
             const base = {
                 label: location.label,
@@ -1009,7 +1009,7 @@ router.get('/:id/pickup-options', authenticate, async (req, res, next) => {
     }
 });
 
-// Reserve an item for 10 hours
+// שמירת פריט (הזמנתו) על ידי משתמש מחובר
 router.post('/:id/reserve', authenticate, async (req, res, next) => {
     try {
         const db = await connectToDatabase();
@@ -1051,7 +1051,7 @@ router.post('/:id/reserve', authenticate, async (req, res, next) => {
     }
 });
 
-// Admin delete any item
+// מחיקת פריט כלשהו על ידי מנהל
 router.delete('/admin/:id', authenticate, authorizeAdmin, async(req, res,next) => {
     try {
         const db = await connectToDatabase();
@@ -1069,7 +1069,7 @@ router.delete('/admin/:id', authenticate, authorizeAdmin, async(req, res,next) =
     }
 });
 
-// Delete an existing item (owner or admin)
+// נקודת קצה: מחיקת פריט על ידי הבעלים או מנהל
 router.delete('/:id', authenticate, async(req, res,next) => {
     try {
         const db = await connectToDatabase();

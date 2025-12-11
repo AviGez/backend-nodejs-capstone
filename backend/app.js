@@ -4,7 +4,6 @@
  * תכלית: להגדיר ולהפעיל את שרת Express, להתחבר ל‑MongoDB,
  * להריץ middleware ולהרשום נתיבים (routes), ולאתחול תמיכה ב‑sockets.
  */
-/*jshint esversion: 8 */
 require('dotenv').config();
 const express = require('express');
 const http = require('http');

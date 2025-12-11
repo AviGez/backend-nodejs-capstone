@@ -15,7 +15,6 @@ const dotenv = require('dotenv');
 const pino = require('pino');  // Import Pino logger
 const { authenticate } = require('../middleware/auth');
 
-//Task 1: Use the `body`,`validationResult` from `express-validator` for input validation
 const { body, validationResult } = require('express-validator');
 
 
@@ -148,11 +147,11 @@ router.put('/update', authenticate, async (req, res) => {
             return res.status(400).json({ error: "Email not found for the authenticated user" });
         }
 
-        //Task 4: Connect to MongoDB
+        // התחברות למסד הנתונים
         const db = await connectToDatabase();
         const collection = db.collection("users");
 
-        //Task 5: Find user credentials
+        // מציאת פרטי המשתמש
         const existingUser = await collection.findOne({ email });
 
         if (!existingUser) {
@@ -164,14 +163,14 @@ router.put('/update', authenticate, async (req, res) => {
         existingUser.role = existingUser.role || 'user';
         existingUser.updatedAt = new Date();
 
-        //Task 6: Update user credentials in DB
+        // עדכון פרטי המשתמש במסד הנתונים
         const updatedUser = await collection.findOneAndUpdate(
             { email },
             { $set: existingUser },
             { returnDocument: 'after' }
         );
 
-        //Task 7: Create JWT authentication with user._id as payload using secret key from .env file
+        // יצירת JWT עם user._id כמשקל באמצעות מפתח סודי מקובץ .env
         if (!updatedUser.value) {
             logger.error('User not found after update attempt');
             return res.status(404).json({ error: "User not found" });
