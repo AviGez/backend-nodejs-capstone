@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { urlConfig } from '../../config';
+import Notifications from '../Notifications/Notifications';
 import './Navbar.css';
 
 export default function Navbar() {
@@ -16,6 +17,8 @@ export default function Navbar() {
     } = useAppContext();
 
     const navigate = useNavigate();
+    const [showNotifications, setShowNotifications] = useState(false);
+    const [unreadCount, setUnreadCount] = useState(0);
     useEffect(() => {
         const authTokenFromSession = sessionStorage.getItem('auth-token');
         const nameFromSession = sessionStorage.getItem('name') || '';
@@ -34,6 +37,55 @@ export default function Navbar() {
             setCurrentUserId('');
         }
     }, [setIsLoggedIn, setUserName, setUserRole, setCurrentUserId]);
+
+    // Fetch unread notifications count
+    useEffect(() => {
+        if (!isLoggedIn) {
+            setUnreadCount(0);
+            return;
+        }
+
+        const fetchUnreadCount = async () => {
+            try {
+                const token = sessionStorage.getItem('auth-token');
+                if (!token) return;
+
+                const response = await fetch(`${urlConfig.backendUrl}/api/notifications`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+
+                if (response.ok) {
+                    const notifications = await response.json();
+                    const unread = notifications.filter(n => !n.readAt).length;
+                    setUnreadCount(unread);
+                }
+            } catch (err) {
+                console.error('Error fetching notifications count:', err);
+            }
+        };
+
+        fetchUnreadCount();
+        // Refresh every 30 seconds
+        const interval = setInterval(fetchUnreadCount, 30000);
+        return () => clearInterval(interval);
+    }, [isLoggedIn, showNotifications]);
+
+    // Close notifications when clicking outside
+    useEffect(() => {
+        if (!showNotifications) return;
+
+        const handleClickOutside = (event) => {
+            const target = event.target;
+            if (!target.closest('.notifications-nav-item')) {
+                setShowNotifications(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showNotifications]);
 
     const handleLogout = () => {
         sessionStorage.removeItem('auth-token');
@@ -88,6 +140,25 @@ export default function Navbar() {
                         )}
                         {isLoggedIn ? (
                             <>
+                                <li className="nav-item notifications-nav-item">
+                                    <button 
+                                        className="nav-link nav-pill notifications-btn"
+                                        onClick={() => setShowNotifications(!showNotifications)}
+                                    >
+                                        <span className="notifications-icon">🔔</span>
+                                        {unreadCount > 0 && (
+                                            <span className="notifications-badge">{unreadCount}</span>
+                                        )}
+                                    </button>
+                                    {showNotifications && (
+                                        <div onClick={(e) => e.stopPropagation()}>
+                                            <Notifications 
+                                                onClose={() => setShowNotifications(false)}
+                                                onUpdateCount={setUnreadCount}
+                                            />
+                                        </div>
+                                    )}
+                                </li>
                                 <li className="nav-item">
                                     <span className="nav-link nav-pill user-greeting" style={{ cursor: "pointer" }} onClick={profileSecton}>
                                         Hey {userName || 'Friend'}

@@ -25,6 +25,23 @@ async function releaseExpiredReservations(db, notificationService) {
         return;
     }
 
+    // Notify users about released items before updating
+    if (notificationService && typeof notificationService.notifyItemReleased === 'function') {
+        for (const item of expiredItems) {
+            if (item.reservedByUserId && item.name) {
+                try {
+                    await notificationService.notifyItemReleased({
+                        userId: item.reservedByUserId,
+                        itemId: item.id,
+                        itemName: item.name,
+                    });
+                } catch (err) {
+                    console.error('Failed to notify user about released item', err);
+                }
+            }
+        }
+    }
+
     await itemsCollection.updateMany(
         {
             status: 'reserved',

@@ -399,3 +399,58 @@
   color: var(--accent);
 }
 
+/* Notifications Button */
+.notifications-nav-item {
+  position: relative;
+}
+
+.notifications-btn {
+  background: transparent;
+  border: none;
+  padding: 0.5rem 1rem;
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notifications-icon {
+  font-size: 1.25rem;
+  color: var(--text-muted);
+  transition: all 0.25s ease;
+}
+
+.notifications-btn:hover .notifications-icon {
+  color: var(--accent);
+  transform: scale(1.1);
+}
+
+.notifications-badge {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.5rem;
+  background: linear-gradient(135deg, var(--accent-strong) 0%, var(--accent-deep) 100%);
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 0.125rem 0.375rem;
+  border-radius: 10px;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.4);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
