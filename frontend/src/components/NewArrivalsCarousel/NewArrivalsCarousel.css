@@ -4,6 +4,10 @@
   min-height: 250px;
 }
 
+.new-arrivals .text-muted {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+
 .carousel-track {
   display: grid;
   grid-auto-flow: column;

@@ -253,22 +253,22 @@ router.get('/carousel', async (req, res, next) => {
         const windowStart = nowSeconds - CAROUSEL_WINDOW_SECONDS;
         const noticeThreshold = nowSeconds - CAROUSEL_NOTICE_SECONDS;
 
-        const [items, notifyCandidates] = await Promise.all([
-            collection.find({
-                date_added: { $gte: windowStart },
-                status: { $ne: 'sold' },
-            })
-                .sort({ date_added: -1 })
-                .limit(20)
-                .toArray(),
-            collection.find({
-                date_added: { $lte: noticeThreshold, $gte: windowStart },
-                carouselExitNotified: { $ne: true },
-                ownerId: { $exists: true, $ne: null },
-            }, {
-                projection: { _id: 1, id: 1, name: 1, ownerId: 1, date_added: 1 },
-            }).toArray(),
-        ]);
+        // Always return the 15 newest items, regardless of date
+        const items = await collection.find({
+            status: { $ne: 'sold' },
+        })
+            .sort({ date_added: -1 })
+            .limit(15)
+            .toArray();
+
+        // Check for items that need carousel exit notification (within the 7-day window)
+        const notifyCandidates = await collection.find({
+            date_added: { $lte: noticeThreshold, $gte: windowStart },
+            carouselExitNotified: { $ne: true },
+            ownerId: { $exists: true, $ne: null },
+        }, {
+            projection: { _id: 1, id: 1, name: 1, ownerId: 1, date_added: 1 },
+        }).toArray();
 
         for (const candidate of notifyCandidates) {
             const ageSeconds = nowSeconds - (candidate.date_added || nowSeconds);
@@ -1029,7 +1029,7 @@ router.post('/:id/reserve', authenticate, async (req, res, next) => {
 
         const reservedUntil = new Date(Date.now() + 10 * 60 * 60 * 1000);
 
-        const updated = await collection.findOneAndUpdate(
+        const updateResult = await collection.updateOne(
             { id, $or: [{ status: { $exists: false } }, { status: 'available' }] },
             {
                 $set: {
@@ -1037,15 +1037,17 @@ router.post('/:id/reserve', authenticate, async (req, res, next) => {
                     reservedByUserId: req.user.id,
                     reservedUntil
                 }
-            },
-            { returnDocument: 'after' }
+            }
         );
 
-        if (!updated.value) {
+        if (updateResult.modifiedCount === 0) {
+            logger.error(`Failed to reserve item: ${id}`);
             return res.status(409).json({ error: "Item could not be reserved" });
         }
 
-        res.json(updated.value);
+        const updatedItem = await collection.findOne({ id });
+        logger.info(`Item reserved successfully: ${id} by user: ${req.user.id}`);
+        res.json(updatedItem);
     } catch (e) {
         next(e);
     }
@@ -1089,6 +1091,50 @@ router.delete('/:id', authenticate, async(req, res,next) => {
 
         await collection.deleteOne({ id });
         res.json({"deleted":"success"});
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ביטול הזמנת פריט על ידי משתמש שהזמין אותו
+router.post('/:id/cancel-reservation', authenticate, async (req, res, next) => {
+    try {
+        const db = await connectToDatabase();
+        const collection = db.collection("secondChanceItems");
+        const id = req.params.id;
+
+        const item = await collection.findOne({ id });
+        
+        logger.info(`Cancel reservation attempt - Item: ${id}, Status: ${item?.status}, ReservedBy: ${item?.reservedByUserId}, CurrentUser: ${req.user.id}`);
+
+        if (!item) {
+            return res.status(404).json({ error: "Item not found" });
+        }
+
+        if (item.status !== 'reserved') {
+            return res.status(400).json({ error: `Item is not reserved. Current status: ${item.status || 'available'}` });
+        }
+
+        if (item.reservedByUserId !== req.user.id) {
+            return res.status(403).json({ error: "You did not reserve this item" });
+        }
+
+        const updateResult = await collection.updateOne(
+            { id },
+            {
+                $set: { status: 'available' },
+                $unset: { reservedByUserId: '', reservedUntil: '' }
+            }
+        );
+
+        if (updateResult.modifiedCount === 0) {
+            logger.error(`Failed to cancel reservation for item: ${id}`);
+            return res.status(409).json({ error: "Reservation could not be cancelled" });
+        }
+
+        const updatedItem = await collection.findOne({ id });
+        logger.info(`Reservation cancelled successfully for item: ${id}`);
+        res.json(updatedItem);
     } catch (e) {
         next(e);
     }

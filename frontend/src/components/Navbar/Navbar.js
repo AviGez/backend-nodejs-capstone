@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import { urlConfig } from '../../config';
@@ -16,6 +16,7 @@ export default function Navbar() {
     } = useAppContext();
 
     const navigate = useNavigate();
+    const [unreadCount, setUnreadCount] = useState(0);
     useEffect(() => {
         const authTokenFromSession = sessionStorage.getItem('auth-token');
         const nameFromSession = sessionStorage.getItem('name') || '';
@@ -34,6 +35,49 @@ export default function Navbar() {
             setCurrentUserId('');
         }
     }, [setIsLoggedIn, setUserName, setUserRole, setCurrentUserId]);
+
+    useEffect(() => {
+        let intervalId;
+        const fetchUnread = async () => {
+            const authToken = sessionStorage.getItem('auth-token');
+            if (!authToken) return;
+            try {
+                const res = await fetch(`${urlConfig.backendUrl}/api/notifications`, {
+                    headers: { Authorization: `Bearer ${authToken}` },
+                });
+                if (!res.ok) return;
+                const items = await res.json();
+                const unread = Array.isArray(items) ? items.filter((n) => !n.readAt).length : 0;
+                setUnreadCount(unread);
+            } catch (e) {
+                // ignore
+            }
+        };
+
+        const onStorage = (e) => {
+            try {
+                if (e.key === 'notifications-last-update') fetchUnread();
+            } catch (e) {}
+        };
+
+        const onCustom = () => {
+            try { fetchUnread(); } catch (e) {}
+        };
+
+        if (isLoggedIn) {
+            fetchUnread();
+            intervalId = setInterval(fetchUnread, 30000);
+            window.addEventListener('storage', onStorage);
+            window.addEventListener('notifications-updated', onCustom);
+        } else {
+            setUnreadCount(0);
+        }
+        return () => {
+            clearInterval(intervalId);
+            window.removeEventListener('storage', onStorage);
+            window.removeEventListener('notifications-updated', onCustom);
+        };
+    }, [isLoggedIn]);
 // טיפול בהתנתקות המשתמש
     const handleLogout = () => {
         sessionStorage.removeItem('auth-token');
@@ -90,11 +134,15 @@ export default function Navbar() {
                             <>
                                 <li className="nav-item">
                                     <span className="nav-link nav-pill user-greeting" style={{ cursor: "pointer" }} onClick={profileSecton}>
-                                        Hey {userName || 'Friend'}
-                                        {userRole === 'admin' && (
-                                            <span className="chip-admin">Admin</span>
-                                        )}
-                                    </span>
+                                            Personal area
+                                            <span className="notification-bell" onClick={(e) => { e.stopPropagation(); navigate('/app/profile'); }} title="Notifications">
+                                                <span className="bell-emoji" aria-hidden>🔔</span>
+                                                {unreadCount > 0 && <span className="notif-count">{unreadCount}</span>}
+                                            </span>
+                                            {userRole === 'admin' && (
+                                                <span className="chip-admin">Admin</span>
+                                            )}
+                                        </span>
                                 </li>
                                 <li className="nav-item">
                                     <button className="btn btn-outline-light nav-cta" onClick={handleLogout}>Logout</button>

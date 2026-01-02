@@ -88,10 +88,7 @@ const NewArrivalsCarousel = () => {
   return (
     <section className="new-arrivals glass-panel mb-4">
       <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-        <div>
-          <h3 className="mb-1">New Arrivals</h3>
-          <p className="text-muted mb-0">Featured for one week, rotating constantly.</p>
-        </div>
+        <h3 className="mb-1 w-100 text-center">New Arrivals</h3>
         {!loading && items.length > 0 && (
         <div className="carousel-controls">
           <button onClick={() => scrollByOffset(-300)} aria-label="Scroll left">‹</button>

@@ -1,40 +1,41 @@
-# SecondChance marketplace
+# Second‑Hand Store - פרויקט SecondChance
 
-## Environment variables
+תמצית
+-------
+זהו פרויקט של חנות יד שנייה (SecondChance) הכולל שירות backend (Node/Express + MongoDB) ו‑frontend (React). הקוד כולל ניהול פריטים, העלאת תמונות, מערכת שיחות (chat) עם Socket.IO, וניהול הודעות/התרעות.
 
-### Backend (`backend/.env`)
+תוכן README זה
+-----------------
+- הסבר קצר על מבנה הפרויקט
+- דרישות והרצת פרויקט מקומית
+- הפעלת Docker / docker compose
+- משתני סביבה חשובים
+- הערות לגבי CI ו‑deployment
 
-| Variable | Description |
-| --- | --- |
-| `MONGO_URL` | MongoDB connection string |
-| `JWT_SECRET` | Secret for signing auth tokens |
-| `FRONTEND_BASE_URL` | Base URL the backend should redirect users to (e.g. `http://localhost:3000`) |
-| `BACKEND_PUBLIC_URL` | Optional: public URL that serves item images |
+מבנה תיקיות עיקרי
+------------------
+- `backend/` — קוד השרת (Express), נקודות קצה ב‑`routes/`, חיבור ל‑MongoDB ב‑`models/db.js`, שירותים ב‑`services/` ו‑`public/images` עבור תמונות.
+- `frontend/` — אפליקציית React (build ותצורה להטמעה ב‑Docker).
+- `docker-compose.yml` — הרכבת Mongo + backend + frontend בציוד מקומי.
 
-### Frontend (`frontend/.env`)
+דרישות מקומיות
+----------------
+- Node.js 18+ (להרצת ה‑backend בפיתוח)
+- npm (או yarn) לניהול חבילות
+- Docker + Docker Compose (להרצה באמצעות containers)
+- MongoDB אם תרצה להריץ מחוץ ל‑Docker
 
-| Variable | Description |
-| --- | --- |
-| `REACT_APP_BACKEND_URL` | The backend origin, e.g. `http://localhost:3060` |
+הגדרות סביבת פיתוח (backend)
+--------------------------------
+1. העתק קובץ `.env` בתיקיית `backend` (אם צריך) וקבע משתנים:
+   - `MONGO_URL` - כתובת החיבור ל‑MongoDB (לדוגמה: `mongodb://root:example@localhost:27017/secondChance?authSource=admin`).
+   - `JWT_SECRET` - סוד JWT לשימוש באימות.
+   - `PORT` - פורט שבו השרת מאזין (ברירת מחדל 3060).
 
-## Docker & Compose
-
-- לבנייה ידנית:
-  ```bash
-  docker build -t secondchance-backend ./backend
-  docker build -t secondchance-frontend ./frontend
-  ```
-- להרצת כל הערימה (Mongo + Backend + Frontend):
-  ```bash
-  docker compose up --build
-  ```
-  זה מעלה:
-  - MongoDB על `mongodb://root:example@localhost:27017`
-  - Backend על `http://localhost:3060`
-  - Frontend על `http://localhost:3000`
-
-## CI/CD
-
-- קיים GitHub Action (`.github/workflows/ci.yml`) שמריץ build/test לשני החלקים ומייצר Docker images ל‑GHCR (או רישום אחר).  
-- להפקת images נדרש להוסיף סודות רישום אם לא משתמשים ב‑GHCR ברירת מחדל.  
-- אפשר להוסיף שלב deploy (SSH, Render, ECS וכו’) לפי סביבת ההפצה שלכם, אחרי שה‑images נדחפים.
+הרצה מקומית של ה‑backend
+---------------------------
+```bash
+cd backend
+npm ci
+# הרצה ישירה (סביבת פיתוח)
+node app.js

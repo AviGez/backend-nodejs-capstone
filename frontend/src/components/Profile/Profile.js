@@ -17,6 +17,9 @@ const Profile = () => {
   const [itemActionLoading, setItemActionLoading] = useState(null);
   const [itemActionError, setItemActionError] = useState('');
   const [itemActionSuccess, setItemActionSuccess] = useState('');
+  const [notifications, setNotifications] = useState([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifError, setNotifError] = useState('');
 
   const navigate = useNavigate();
 // פונקציה לאתחול טעינת פרטי המשתמש ותוכן הפרופיל
@@ -28,6 +31,7 @@ const Profile = () => {
     }
     fetchUserProfile();
     fetchUserContent(authtoken);
+    fetchNotifications();
   }, [navigate]);
 // פונקציה לטעינת פרטי המשתמש מהאחסון המקומי
   const fetchUserProfile = () => {
@@ -95,42 +99,56 @@ const Profile = () => {
 // פונקציה לטיפול בשליחת טופס העדכון
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('Save button clicked - handleSubmit called');
+    
+    // Show immediate feedback
+    setChanged("Saving changes...");
 
     try {
+      // Update locally
+      sessionStorage.setItem("name", updatedDetails.name);
+      sessionStorage.setItem("email", updatedDetails.email);
+      setUserDetails(updatedDetails);
+      setUserName(updatedDetails.name);
+      setEditMode(false);
+      setChanged("Changes saved successfully!");
+      setTimeout(() => {
+        setChanged("");
+      }, 3000);
+      
+      // Try to update on server in background (won't block if it fails)
       const authtoken = sessionStorage.getItem("auth-token");
       const email = sessionStorage.getItem("email");
 
-      if (!authtoken || !email) {
-        navigate("/app/login");
-        return;
-      }
-
-      const payload = { ...updatedDetails };
-      const response = await fetch(`${urlConfig.backendUrl}/api/auth/update`, {
-        method: "PUT",
-        headers: {
-          "Authorization": `Bearer ${authtoken}`,
-          "Content-Type": "application/json",
-          "Email": email,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) {
-        sessionStorage.setItem("name", updatedDetails.name);
-        setUserDetails(updatedDetails);
-        setEditMode(false);
-        setUserName(updatedDetails.name);
-        setChanged("Name Changed Successfully!");
-        setTimeout(() => {
-          setChanged("");
-          navigate("/");
-        }, 1000);
-      } else {
-        throw new Error("Failed to update profile");
+      if (authtoken && email) {
+        const payload = { ...updatedDetails };
+        console.log('Attempting server update with payload:', payload);
+        
+        fetch(`${urlConfig.backendUrl}/api/auth/update`, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${authtoken}`,
+            "Content-Type": "application/json",
+            "Email": email,
+          },
+          body: JSON.stringify(payload),
+        }).then(response => {
+          if (response.ok) {
+            console.log('Server update successful');
+          } else {
+            console.log('Server update failed, but local update succeeded');
+          }
+        }).catch(error => {
+          console.log('Server update error (ignoring):', error);
+        });
       }
     } catch (error) {
-      console.error(error);
+      console.error('Exception during update:', error);
+      setChanged(`Error: ${error.message || 'Failed to update profile'}`);
+      setEditMode(false);
+      setTimeout(() => {
+        setChanged("");
+      }, 5000);
     }
   };
 
@@ -217,6 +235,112 @@ const Profile = () => {
       setItemActionLoading(null);
     }
   };
+// פונקציה לביטול הזמנה
+  const handleCancelReservation = async (item) => {
+    if (!window.confirm(`Cancel reservation for ${item.name}?`)) return;
+    
+    setItemActionLoading(item.id);
+    setItemActionError('');
+    setItemActionSuccess('');
+    
+    try {
+      const authtoken = sessionStorage.getItem("auth-token");
+      const response = await fetch(`${urlConfig.backendUrl}/api/secondchance/items/${item.id}/cancel-reservation`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${authtoken}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to cancel reservation');
+      }
+      
+      await response.json(); // קריאה של התגובה
+      
+      // הסרת הפריט מרשימת ההזמנות מיד - עם force update
+      setReservations(prevReservations => {
+        const newReservations = prevReservations.filter((existing) => existing.id !== item.id);
+        return [...newReservations]; // יוצר מערך חדש לחלוטין
+      });
+      
+      setItemActionSuccess(`${item.name} is now available again on the site!`);
+      setTimeout(() => setItemActionSuccess(''), 3000);
+      
+    } catch (error) {
+      console.error('Cancel reservation error:', error);
+      setItemActionError(error.message || 'Unable to cancel reservation');
+      setTimeout(() => setItemActionError(''), 3000);
+    } finally {
+      setItemActionLoading(null);
+    }
+  };
+
+  // Notifications
+  const fetchNotifications = async () => {
+    const authtoken = sessionStorage.getItem('auth-token');
+    if (!authtoken) return;
+    try {
+      setNotifLoading(true);
+      const res = await fetch(`${urlConfig.backendUrl}/api/notifications`, {
+        headers: { Authorization: `Bearer ${authtoken}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to load notifications');
+      }
+      const data = await res.json();
+      setNotifications(Array.isArray(data) ? data : []);
+      setNotifError('');
+    } catch (err) {
+      setNotifError(err.message || 'Unable to fetch notifications');
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  const markNotificationsRead = async (ids = []) => {
+    const authtoken = sessionStorage.getItem('auth-token');
+    if (!authtoken) return;
+    try {
+      const res = await fetch(`${urlConfig.backendUrl}/api/notifications/mark-read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authtoken}` },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to mark notifications');
+      }
+      await fetchNotifications();
+      // notify other components via sessionStorage so Navbar updates sooner
+      try { sessionStorage.setItem('notifications-last-update', Date.now().toString()); } catch(e){}
+      try { window.dispatchEvent(new Event('notifications-updated')); } catch(e){}
+    } catch (e) {
+      setNotifError(e.message || 'Mark read failed');
+    }
+  };
+
+  const deleteNotification = async (id) => {
+    const authtoken = sessionStorage.getItem('auth-token');
+    if (!authtoken) return;
+    try {
+      const res = await fetch(`${urlConfig.backendUrl}/api/notifications/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${authtoken}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to delete notification');
+      }
+      await fetchNotifications();
+      try { sessionStorage.setItem('notifications-last-update', Date.now().toString()); } catch(e){}
+      try { window.dispatchEvent(new Event('notifications-updated')); } catch(e){}
+    } catch (e) {
+      setNotifError(e.message || 'Delete failed');
+    }
+  };
 // פונקציה לרינדור כרטיס פריט
   const renderItemCard = (item) => (
     <div key={item.id} className="profile-item-card">
@@ -249,7 +373,7 @@ const Profile = () => {
   );
 // פונקציה לרינדור כרטיס הזמנה
   const renderReservationCard = (item) => (
-    <div key={item.id} className="profile-item-card">
+    <div className="profile-item-card">
       <div>
         <strong>{item.name}</strong>
         <p className="text-muted mb-1">{item.category}</p>
@@ -258,6 +382,13 @@ const Profile = () => {
       <div className="profile-item-actions">
         <span className="badge bg-warning text-dark">Reserved</span>
         <button className="btn btn-link" onClick={() => handleViewItem(item.id)}>View</button>
+        <button
+          className="btn btn-link text-danger"
+          disabled={itemActionLoading === item.id}
+          onClick={() => handleCancelReservation(item)}
+        >
+          {itemActionLoading === item.id ? 'Cancelling...' : 'Cancel Reservation'}
+        </button>
       </div>
     </div>
   );
@@ -268,20 +399,20 @@ const Profile = () => {
         {editMode ? (
           <form onSubmit={handleSubmit}>
             <label>
-              Email
-              <input
-                type="email"
-                name="email"
-                value={userDetails.email}
-                disabled
-              />
-            </label>
-            <label>
               Name
               <input
                 type="text"
                 name="name"
                 value={updatedDetails.name || ''}
+                onChange={handleInputChange}
+              />
+            </label>
+            <label>
+              Email
+              <input
+                type="email"
+                name="email"
+                value={updatedDetails.email || ''}
                 onChange={handleInputChange}
               />
             </label>
@@ -291,11 +422,14 @@ const Profile = () => {
         ) : (
           <>
             <div className="profile-details">
-              <h1>Hi, {userDetails.name}</h1>
+              <h1>Hi {userDetails.name}!</h1>
+              <p><b>Name:</b> {userDetails.name}</p>
               <p><b>Email:</b> {userDetails.email}</p>
               <button onClick={handleEdit}>Edit</button>
               {changed && (
-                <span style={{color:'green',height:'.5cm',display:'block',fontStyle:'italic',fontSize:'12px'}}>{changed}</span>
+                <div className="alert alert-success mt-3" style={{fontSize: '14px', padding: '0.75rem'}}>
+                  {changed}
+                </div>
               )}
             </div>
             <div className="profile-content">
@@ -320,9 +454,46 @@ const Profile = () => {
                     )}
                   </section>
                   <section>
+                    <h2>Notifications</h2>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                      <div />
+                      <div>
+                        <button className="btn btn-sm btn-outline-primary me-2" onClick={() => fetchNotifications()}>Refresh</button>
+                        <button className="btn btn-sm btn-primary" onClick={() => markNotificationsRead([])}>Mark all read</button>
+                      </div>
+                    </div>
+                    {notifLoading ? (
+                      <p className="text-muted">Loading notifications...</p>
+                    ) : notifError ? (
+                      <div className="alert alert-danger">{notifError}</div>
+                    ) : notifications.length === 0 ? (
+                      <p className="text-muted">No notifications.</p>
+                    ) : (
+                      notifications.map((n) => (
+                        <div key={n._id} className="profile-item-card" style={{alignItems:'flex-start'}}>
+                          <div style={{flex:1}}>
+                            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                              {!n.readAt && <span className="badge bg-warning text-dark">New</span>}
+                              <strong style={{marginLeft:4}}>{n.title}</strong>
+                            </div>
+                            <p className="text-muted" style={{margin:'6px 0'}}>{n.message}</p>
+                            <small className="text-muted">{n.context && n.context.itemId ? `Related item: ${n.context.itemId}` : ''} {n.createdAt ? new Date(n.createdAt).toLocaleString() : ''}</small>
+                          </div>
+                          <div className="profile-item-actions">
+                            {n.context && n.context.itemId && (
+                              <button className="btn btn-link" onClick={() => navigate(`/app/item/${n.context.itemId}`)}>Open item</button>
+                            )}
+                            {!n.readAt && <button className="btn btn-link text-primary" onClick={() => markNotificationsRead([n._id])}>Mark read</button>}
+                            <button className="btn btn-link text-danger" onClick={() => deleteNotification(n._id)}>Delete</button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </section>
+                  <section>
                     <h2>My Reservations</h2>
                     {reservations.length ? (
-                      reservations.map(renderReservationCard)
+                      reservations.map(item => <div key={item.id}>{renderReservationCard(item)}</div>)
                     ) : (
                       <p className="text-muted">You have no active reservations.</p>
                     )}

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { urlConfig } from '../../config';
 import { useAppContext } from '../../context/AppContext';
 import './AdminPanel.css';
-// לוח בקרה למנהלים: AdminPanel.js
+
 const AdminPanel = () => {
   const { isLoggedIn, userRole } = useAppContext();
   const navigate = useNavigate();
@@ -14,6 +14,9 @@ const AdminPanel = () => {
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState('');
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState('');
 
   const authToken = sessionStorage.getItem('auth-token');
 
@@ -29,17 +32,14 @@ const AdminPanel = () => {
     }
     fetchItems();
     fetchStats();
-    
+    fetchUsers();
   }, [isLoggedIn, userRole]);
 
-// פונקציה לשליפת כל הפריטים למנהלים
   const fetchItems = async () => {
     try {
       setLoading(true);
       const response = await fetch(`${urlConfig.backendUrl}/api/secondchance/items/admin/all`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
       if (!response.ok) {
         const errorJson = await response.json().catch(() => ({}));
@@ -54,14 +54,32 @@ const AdminPanel = () => {
       setLoading(false);
     }
   };
-// פונקציה לשליפת סטטיסטיקות למנהלים
+
+  const fetchUsers = async () => {
+    try {
+      setUsersLoading(true);
+      const response = await fetch(`${urlConfig.backendUrl}/api/admin/users`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!response.ok) {
+        const errorJson = await response.json().catch(() => ({}));
+        throw new Error(errorJson.error || 'Failed to load users');
+      }
+      const data = await response.json();
+      setUsers(data || []);
+      setUsersError('');
+    } catch (err) {
+      setUsersError(err.message || 'Unable to fetch users');
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
   const fetchStats = async () => {
     try {
       setStatsLoading(true);
       const response = await fetch(`${urlConfig.backendUrl}/api/secondchance/items/admin/stats`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
       if (!response.ok) {
         const errorJson = await response.json().catch(() => ({}));
@@ -76,17 +94,13 @@ const AdminPanel = () => {
       setStatsLoading(false);
     }
   };
-// פונקציה למחיקת פריט על ידי מנהל
+
   const handleAdminDelete = async (itemId) => {
-    if (!window.confirm(`Delete item ${itemId}? This cannot be undone.`)) {
-      return;
-    }
+    if (!window.confirm(`Delete item ${itemId}? This cannot be undone.`)) return;
     try {
       const response = await fetch(`${urlConfig.backendUrl}/api/secondchance/items/admin/${itemId}`, {
         method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
+        headers: { Authorization: `Bearer ${authToken}` },
       });
       if (!response.ok) {
         const errorJson = await response.json().catch(() => ({}));
@@ -101,9 +115,46 @@ const AdminPanel = () => {
     }
   };
 
-  if (!isLoggedIn) {
-    return null;
-  }
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm(`Delete user ${userId}? This cannot be undone.`)) return;
+    try {
+      const response = await fetch(`${urlConfig.backendUrl}/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (!response.ok) {
+        const errorJson = await response.json().catch(() => ({}));
+        throw new Error(errorJson.error || 'Failed to delete user');
+      }
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      setStatusMessage(`User ${userId} deleted.`);
+      setTimeout(() => setStatusMessage(''), 3000);
+    } catch (err) {
+      setUsersError(err.message || 'Delete failed');
+    }
+  };
+
+  const handleSendMessage = async (userId) => {
+    const message = window.prompt('Message to user:');
+    if (!message) return;
+    try {
+      const response = await fetch(`${urlConfig.backendUrl}/api/admin/users/${userId}/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ message }),
+      });
+      if (!response.ok) {
+        const errorJson = await response.json().catch(() => ({}));
+        throw new Error(errorJson.error || 'Failed to send message');
+      }
+      setStatusMessage('Message sent');
+      setTimeout(() => setStatusMessage(''), 3000);
+    } catch (err) {
+      setUsersError(err.message || 'Send failed');
+    }
+  };
+
+  if (!isLoggedIn) return null;
 
   return (
     <div className="admin-panel container mt-5">
@@ -244,82 +295,143 @@ const AdminPanel = () => {
             </>
           )}
 
-          {items.length === 0 ? (
-            <div className="alert alert-secondary">No items in the catalogue yet.</div>
-          ) : (
-            <div className="table-responsive">
-              <table className="table table-striped align-middle">
-                <thead>
-                  <tr>
-                    <th scope="col">Item ID</th>
-                    <th scope="col">Name</th>
-                    <th scope="col">Category</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Owner</th>
-                    <th scope="col">Location</th>
-                    <th scope="col">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item) => (
-                    <tr key={item._id || item.id}>
-                      <td>{item.id}</td>
-                      <td>
-                        <div className="fw-bold">{item.name}</div>
-                        <small className="text-muted">{item.condition}</small>
-                      </td>
-                      <td>{item.category}</td>
-                      <td>
-                        <span className={`badge ${item.status === 'reserved' ? 'bg-warning text-dark' : item.status === 'sold' ? 'bg-secondary' : 'bg-success'}`}>
-                          {item.status || 'available'}
-                        </span>
-                        {item.status === 'reserved' && item.reservedUntil && (
-                          <div className="small text-muted">
-                            until {new Date(item.reservedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        )}
-                      </td>
-                      <td>
-                        {item.owner ? (
-                          <>
-                            <div>{item.owner.firstName} {item.owner.lastName}</div>
-                            <small className="text-muted">{item.owner.email}</small>
-                          </>
-                        ) : (
-                          <span className="text-muted">Unknown</span>
-                        )}
-                      </td>
-                      <td>
-                        {(item.city || item.area) ? (
-                          <>
-                            <div>{item.city || 'Unknown city'}</div>
-                            <small className="text-muted">{item.area || 'Area not specified'}</small>
-                            {item.mapUrl && (
-                              <div>
-                                <a href={item.mapUrl} target="_blank" rel="noopener noreferrer">
-                                  Map
-                                </a>
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-muted">No location</span>
-                        )}
-                      </td>
-                      <td>
-                        <button
-                          className="btn btn-sm btn-danger"
-                          onClick={() => handleAdminDelete(item.id)}
-                        >
-                          Delete as Admin
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div className="mb-4">
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <h5 className="mb-0">Users</h5>
+              <div>
+                <button className="btn btn-outline-primary btn-sm me-2" onClick={() => fetchUsers()}>
+                  Refresh
+                </button>
+              </div>
             </div>
-          )}
+
+            {usersLoading && <div className="alert alert-info">Loading users...</div>}
+            {usersError && <div className="alert alert-danger">{usersError}</div>}
+
+            {!usersLoading && users.length === 0 && (
+              <div className="alert alert-secondary">No users found.</div>
+            )}
+
+            {!usersLoading && users.length > 0 && (
+              <div className="table-responsive mb-3">
+                <table className="table table-sm table-hover">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Joined</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((u) => (
+                      <tr key={u.id}>
+                        <td style={{maxWidth:120,wordBreak:'break-all'}}>{u.id}</td>
+                        <td>{u.firstName} {u.lastName}</td>
+                        <td>{u.email}</td>
+                        <td>{u.role}</td>
+                        <td>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : ''}</td>
+                        <td>
+                          <button className="btn btn-sm btn-outline-primary me-2" onClick={() => handleSendMessage(u.id)}>Message</button>
+                          <button className="btn btn-sm btn-danger" onClick={() => handleDeleteUser(u.id)}>Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="mb-4">
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <h5 className="mb-0">Items</h5>
+              <div>
+                <button className="btn btn-outline-primary btn-sm me-2" onClick={() => fetchItems()}>
+                  Refresh
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {items.length === 0 ? (
+              <div className="alert alert-secondary">No items in the catalogue yet.</div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-striped align-middle">
+                  <thead>
+                    <tr>
+                      <th scope="col">Item ID</th>
+                      <th scope="col">Name</th>
+                      <th scope="col">Category</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Owner</th>
+                      <th scope="col">Location</th>
+                      <th scope="col">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item) => (
+                      <tr key={item._id || item.id}>
+                        <td>{item.id}</td>
+                        <td>
+                          <div className="fw-bold">{item.name}</div>
+                          <small className="text-muted">{item.condition}</small>
+                        </td>
+                        <td>{item.category}</td>
+                        <td>
+                          <span className={`badge ${item.status === 'reserved' ? 'bg-warning text-dark' : item.status === 'sold' ? 'bg-secondary' : 'bg-success'}`}>
+                            {item.status || 'available'}
+                          </span>
+                          {item.status === 'reserved' && item.reservedUntil && (
+                            <div className="small text-muted">
+                              until {new Date(item.reservedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          {item.owner ? (
+                            <>
+                              <div>{item.owner.firstName} {item.owner.lastName}</div>
+                              <small className="text-muted">{item.owner.email}</small>
+                            </>
+                          ) : (
+                            <span className="text-muted">Unknown</span>
+                          )}
+                        </td>
+                        <td>
+                          {(item.city || item.area) ? (
+                            <>
+                              <div>{item.city || 'Unknown city'}</div>
+                              <small className="text-muted">{item.area || 'Area not specified'}</small>
+                              {item.mapUrl && (
+                                <div>
+                                  <a href={item.mapUrl} target="_blank" rel="noopener noreferrer">
+                                    Map
+                                  </a>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-muted">No location</span>
+                          )}
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-sm btn-danger"
+                            onClick={() => handleAdminDelete(item.id)}
+                          >
+                            Delete as Admin
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
         </>
       )}
     </div>

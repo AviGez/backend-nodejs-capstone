@@ -8,6 +8,7 @@ const express = require('express');
 const { ObjectId } = require('mongodb');
 const connectToDatabase = require('../models/db');
 const { authenticate, authorizeAdmin } = require('../middleware/auth');
+const { notificationService } = require('./notificationsRoutes');
 
 const router = express.Router();
 
@@ -80,6 +81,30 @@ router.post('/:itemId', authenticate, async (req, res, next) => {
                 updatedAt: now,
             });
             const chat = await chatsCollection.findOne({ _id: insertResult.insertedId });
+
+            // Notify the seller that a buyer opened a chat (best-effort)
+            try {
+                const usersCollection = db.collection('users');
+                let buyerName = buyerId;
+                try {
+                    const buyerDoc = await usersCollection.findOne({ _id: ObjectId(buyerId) });
+                    if (buyerDoc) buyerName = `${buyerDoc.firstName || ''} ${buyerDoc.lastName || ''}`.trim() || buyerId;
+                } catch (e) {
+                    // buyerId may not be an ObjectId; ignore lookup errors
+                }
+
+                await notificationService.createNotification({
+                    userIds: [sellerId],
+                    type: 'chatRequest',
+                    title: 'New chat request',
+                    message: `${buyerName} wants to chat about ${item.name || itemId}`,
+                    context: { itemId, chatId: insertResult.insertedId.toString() },
+                });
+            } catch (e) {
+                // don't block chat creation on notification failure
+                console.error('Failed to notify seller about new chat', e);
+            }
+
             return res.status(201).json(mapChatResponse(chat));
         } catch (error) {
             if (error.code === 11000) {

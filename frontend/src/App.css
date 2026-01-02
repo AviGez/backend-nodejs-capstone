@@ -86,6 +86,11 @@ body,
   margin-top: 1.5rem;
 }
 
+.hero-actions button {
+  min-width: 200px;
+  flex: 0 0 auto;
+}
+
 .register-card,
 .login-card,
 .profile-content section,
@@ -203,6 +208,49 @@ body,
   border-color: rgba(56, 189, 248, 0.7);
   color: var(--accent);
   background: rgba(15, 23, 42, 0.35);
+}
+
+.btn-secondary-modern {
+  background: linear-gradient(135deg, #14b8a6 0%, #0d9488 50%, #0f766e 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 14px;
+  padding: 1rem 2.5rem;
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: 0.03em;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 8px 16px -4px rgba(20, 184, 166, 0.4),
+    0 4px 8px -2px rgba(20, 184, 166, 0.3);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  text-transform: uppercase;
+  font-size: 0.9rem;
+}
+
+.btn-secondary-modern::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  transition: left 0.6s ease;
+}
+
+.btn-secondary-modern:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.btn-secondary-modern:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 
+    0 16px 24px -4px rgba(20, 184, 166, 0.5),
+    0 8px 12px -2px rgba(20, 184, 166, 0.4);
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 50%, #115e59 100%);
 }
 
 .search-panel {
@@ -658,10 +706,10 @@ body,
 }
 
 .card-body {
-  padding: 0.75rem 1rem;
+  padding: 0.2rem 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.05rem;
   flex: 1 1 auto;
   color: var(--text-dark);
   position: relative;
@@ -706,10 +754,10 @@ body,
 
 .product-card .card-footer {
   border-top: 1px solid rgba(148, 163, 184, 0.2);
-  padding: 0.75rem 1rem;
+  padding: 0.2rem 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.1rem;
   margin-top: auto;
   background: transparent;
   position: relative;
@@ -723,14 +771,14 @@ body,
 }
 
 .status-pill {
-  padding: 0.2275rem 0.5525rem;
+  padding: 0.15rem 0.4rem;
   border-radius: 999px;
   font-size: 0.85rem;
   font-weight: 600;
   letter-spacing: 0.03em;
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.25rem;
 }
 
 .status-available {
@@ -1148,6 +1196,10 @@ body,
   margin-bottom: 0.5rem;
 }
 
+.recommendation-header .text-muted {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+
 .container-fluid.px-0 {
   padding-left: 0 !important;
   padding-right: 0 !important;
@@ -1304,4 +1356,79 @@ body,
 
 .recent-list li:last-child {
   border-bottom: none;
+}
+
+/* Search Modal Styles */
+.search-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.search-modal-content {
+  position: relative;
+  max-width: 800px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.search-modal-close {
+  position: absolute;
+  top: -40px;
+  right: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 2rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+  padding: 0;
+}
+
+.search-modal-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: rotate(90deg);
+}
+
+.search-modal-content .search-panel {
+  margin-bottom: 0;
 }

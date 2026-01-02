@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import MainPage from './components/MainPage/MainPage';
 import LoginPage from './components/LoginPage/LoginPage';
 import DetailsPage from './components/DetailsPage/DetailsPage';
@@ -12,7 +12,8 @@ import Profile from './components/Profile/Profile';
 import { AppProvider } from './context/AppContext';
 import AdminPanel from './components/AdminPanel/AdminPanel';
 import Footer from './components/Footer/Footer';
-import MyReservations from './components/MyReservations/MyReservations';
+// MyReservations page removed
+import PurchaseHistory from './components/PurchaseHistory/PurchaseHistory';
 
 function App() {
 
@@ -28,7 +29,9 @@ function App() {
           <Route path="/app/register" element={<RegisterPage />} />
           <Route path="/app/addItem" element={<ItemPage />} />
           <Route path="/app/admin" element={<AdminPanel />} />
-          <Route path="/app/reservations" element={<MyReservations />} />
+          {/* redirect legacy path to profile */}
+          <Route path="/app/my-reservations" element={<Navigate to="/app/profile" replace />} />
+          <Route path="/app/purchase-history" element={<PurchaseHistory />} />
         </Routes>
         <Footer />
         </AppProvider>

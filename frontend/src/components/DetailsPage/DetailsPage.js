@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { urlConfig } from "../../config"
 import { useAppContext } from '../../context/AppContext';
 import ChatModal from '../ChatModal/ChatModal';
+import PaymentModal from '../PaymentModal/PaymentModal';
 
 import './DetailsPage.css';
 
@@ -46,12 +47,8 @@ function DetailsPage() {
     const [chatError, setChatError] = useState('');
     const [pickupError] = useState('');
     const [activeImageIndex, setActiveImageIndex] = useState(0);
-    const [deliveryMethod, setDeliveryMethod] = useState('pickup'); // 'pickup' or 'shipping'
-    const [customerAddress, setCustomerAddress] = useState('');
-    const [customerCity, setCustomerCity] = useState('');
-    const [customerArea, setCustomerArea] = useState('');
-    const [shippingCost, setShippingCost] = useState(0);
-    const [distance, setDistance] = useState(0);
+    // shipping/delivery removed — price is item price only
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
     const { isLoggedIn, currentUserId } = useAppContext();
 
     useEffect(() => {
@@ -159,83 +156,34 @@ function DetailsPage() {
         return R * c; // מרחק בק"מ
     };
 
-    // קבלת קואורדינטות משם עיר (פשטני - בייצור יש להשתמש ב-API גאוקודינג)
-    const getCityCoordinates = (cityName) => {
-        // קואורדינטות ערים מפושטות לישראל
-        const cityCoords = {
-            'Jerusalem': [31.7683, 35.2137],
-            'Tel Aviv-Yafo': [32.0853, 34.7818],
-            'Haifa': [32.7940, 34.9896],
-            'Rishon LeZion': [31.9730, 34.7925],
-            'Petah Tikva': [32.0871, 34.8878],
-            'Ashdod': [31.8044, 34.6553],
-            'Netanya': [32.3320, 34.8597],
-            'Beer Sheva': [31.2457, 34.7925],
-            'Holon': [32.0103, 34.7795],
-            'Bnei Brak': [32.0807, 34.8338],
-            'Rehovot': [31.8947, 34.8093],
-            'Bat Yam': [32.0238, 34.7519],
-            'Herzliya': [32.1624, 34.8447],
-            'Kfar Saba': [32.1719, 34.9069],
-            'Raanana': [32.1842, 34.8718],
-            'Ramat Gan': [32.0822, 34.8103],
-            'Modiin': [31.8986, 35.0069],
-            'Hadera': [32.4340, 34.9197],
-            'Ashkelon': [31.6688, 34.5743],
-            'Nazareth': [32.6996, 35.3035],
-            'Tiberias': [32.7959, 35.5310],
-            'Eilat': [29.5577, 34.9519],
-            'Safed': [32.9646, 35.4960],
-            'Kiryat Ono': [32.0622, 34.8563],
-            'Givatayim': [32.0702, 34.8083]
-        };
-        return cityCoords[cityName] || null;
-    };
-
-    // חישוב עלות משלוח
-    const calculateShippingCost = () => {
-        if (!gift?.enableShipping || deliveryMethod !== 'shipping') {
-            setShippingCost(0);
-            setDistance(0);
-            return;
-        }
-
-        if (!customerCity || !gift.pickupCity) {
-            setShippingCost(0);
-            setDistance(0);
-            return;
-        }
-
-        const pickupCoords = getCityCoordinates(gift.pickupCity);
-        const customerCoords = getCityCoordinates(customerCity);
-
-        if (!pickupCoords || !customerCoords) {
-            setShippingCost(0);
-            setDistance(0);
-            return;
-        }
-
-        const dist = calculateDistance(
-            pickupCoords[0], pickupCoords[1],
-            customerCoords[0], customerCoords[1]
-        );
-        setDistance(dist);
-
-        const basePrice = gift.shippingBasePrice || 10;
-        const pricePerKm = gift.shippingPricePerKm || 2;
-        const cost = basePrice + (dist * pricePerKm);
-        setShippingCost(cost);
-    };
-
-    useEffect(() => {
-        if (gift) {
-            calculateShippingCost();
-        }
-    }, [deliveryMethod, customerCity, gift?.enableShipping, gift?.pickupCity, gift?.shippingBasePrice, gift?.shippingPricePerKm, gift]);
+    // shipping-related calculations removed
 
     const handleBackClick = () => {
         navigate(-1); // חזרה לעמוד הקודם
     };
+
+    // פתיחת מודאל תשלום
+    const handleBuyNow = () => {
+        setShowPaymentModal(true);
+    };
+
+    // טיפול בהצלחת תשלום
+    const handlePaymentSuccess = (result) => {
+        setShowPaymentModal(false);
+        setActionMessage('Payment successful! Item purchased.');
+        // update local state to show item as sold
+        setGift((prev) => (prev ? { ...prev, status: 'sold' } : prev));
+        // clear message after a short delay
+        setTimeout(() => {
+            setActionMessage('');
+        }, 4000);
+    };
+
+    // ביטול תשלום
+    const handlePaymentCancel = () => {
+        setShowPaymentModal(false);
+    };
+
 // בקשת אישור לאיסוף הפריט
     const requestApproval = async () => {
         try {
@@ -498,98 +446,26 @@ function DetailsPage() {
                                         Message seller
                                     </button>
                                 )}
-                                {gift.enableShipping && gift.status === 'available' && (
+                                {gift.status === 'available' && (
                                     <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(226, 232, 240, 0.6)' }}>
-                                        <div style={{ marginBottom: '0.75rem' }}>
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginBottom: '0.5rem' }}>
-                                                <input
-                                                    type="radio"
-                                                    name="deliveryMethod"
-                                                    value="pickup"
-                                                    checked={deliveryMethod === 'pickup'}
-                                                    onChange={(e) => setDeliveryMethod(e.target.value)}
-                                                    style={{ cursor: 'pointer' }}
-                                                />
-                                                <span>Pickup</span>
-                                            </label>
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                                <input
-                                                    type="radio"
-                                                    name="deliveryMethod"
-                                                    value="shipping"
-                                                    checked={deliveryMethod === 'shipping'}
-                                                    onChange={(e) => setDeliveryMethod(e.target.value)}
-                                                    style={{ cursor: 'pointer' }}
-                                                />
-                                                <span>Shipping</span>
-                                            </label>
-                                        </div>
-                                        {deliveryMethod === 'shipping' && (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Your address"
-                                                    value={customerAddress}
-                                                    onChange={(e) => setCustomerAddress(e.target.value)}
-                                                    style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(203, 213, 225, 0.6)' }}
-                                                />
-                                                <input
-                                                    type="text"
-                                                    placeholder="Your city"
-                                                    value={customerCity}
-                                                    onChange={(e) => setCustomerCity(e.target.value)}
-                                                    list="customer-city-options"
-                                                    style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(203, 213, 225, 0.6)' }}
-                                                />
-                                                <datalist id="customer-city-options">
-                                                    {cityOptions.map((option) => (
-                                                        <option key={option} value={option} />
-                                                    ))}
-                                                </datalist>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Your area/neighborhood"
-                                                    value={customerArea}
-                                                    onChange={(e) => setCustomerArea(e.target.value)}
-                                                    style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid rgba(203, 213, 225, 0.6)' }}
-                                                />
-                                                {distance > 0 && (
-                                                    <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.5rem' }}>
-                                                        Distance: {distance.toFixed(1)} km
-                                                    </div>
-                                                )}
-                                                {shippingCost > 0 && (
-                                                    <div style={{ fontSize: '0.9rem', fontWeight: '600', marginTop: '0.5rem' }}>
-                                                        Shipping: ${shippingCost.toFixed(2)}
-                                                    </div>
-                                                )}
+                                        {(Number(gift.price || 0) > 0) && (
+                                            <div style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '0.5rem' }}>
+                                                Total: ${Number(gift.price || 0).toFixed(2)}
                                             </div>
                                         )}
-                                        {(deliveryMethod === 'pickup' ? Number(gift.price || 0) : Number(gift.price || 0) + shippingCost) > 0 && (
-                                            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(226, 232, 240, 0.6)' }}>
-                                                <div style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '0.5rem' }}>
-                                                    Total: ${(deliveryMethod === 'pickup' ? Number(gift.price || 0) : Number(gift.price || 0) + shippingCost).toFixed(2)}
-                                                </div>
-                                                {deliveryMethod === 'shipping' && customerCity && (
-                                                    <button 
-                                                        className="btn btn-modern-secondary btn-sm"
-                                                        style={{ 
-                                                            background: 'linear-gradient(135deg, #0070ba 0%, #003087 100%)',
-                                                            color: 'white',
-                                                            border: 'none',
-                                                            width: '100%',
-                                                            marginTop: '0.5rem'
-                                                        }}
-                                                        onClick={() => {
-                                                            // PayPal integration would go here
-                                                            alert('PayPal payment integration - Total: $' + (Number(gift.price || 0) + shippingCost).toFixed(2));
-                                                        }}
-                                                    >
-                                                        Pay with PayPal
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )}
+                                        <button 
+                                            className="btn btn-modern-secondary btn-sm"
+                                            style={{ 
+                                                background: 'linear-gradient(135deg, #0070ba 0%, #003087 100%)',
+                                                color: 'white',
+                                                border: 'none',
+                                                width: '100%',
+                                                marginTop: '0.5rem'
+                                            }}
+                                            onClick={handleBuyNow}
+                                        >
+                                            Buy Now with PayPal
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -630,6 +506,13 @@ function DetailsPage() {
                     chatId={chatModal.chatId}
                     itemName={gift.name}
                     onClose={() => setChatModal({ open: false, chatId: null })}
+                />
+            )}
+            {showPaymentModal && (
+                <PaymentModal
+                    item={{ id: gift.id, name: gift.name, price: Number(gift.price || 0) }}
+                    onSuccess={handlePaymentSuccess}
+                    onCancel={handlePaymentCancel}
                 />
             )}
         </div>

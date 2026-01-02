@@ -3,6 +3,10 @@
   border-radius: 24px 24px 0 0;
 }
 
+.app-footer .text-muted {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+
 .footer-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(117px, 1fr));
@@ -62,96 +66,16 @@
   font-weight: 600;
 }
 
-.footer-bottom {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.footer-links {
-  display: flex;
-  gap: 1rem;
+.subscribe-message {
+  width: 100%;
+  margin-top: 0.45rem;
   font-size: 0.9rem;
 }
-
-.footer-links a {
-  color: var(--text-muted);
-  text-decoration: none;
+.subscribe-message.success {
+  color: #bbf7d0;
 }
-
-@media (max-width: 768px) {
-  .app-footer {
-    padding: 0.975rem;
-  }
-}
-.app-footer {
-  padding: 1.3rem 1.95rem;
-  border-radius: 24px 24px 0 0;
-}
-
-.footer-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(117px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.footer-grid h6 {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  margin-bottom: 0.6rem;
-}
-
-.footer-grid ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.footer-grid a,
-.footer-grid span {
-  color: var(--text-primary);
-  text-decoration: none;
-  font-weight: 500;
-  opacity: 0.85;
-}
-
-.footer-grid a:hover {
-  opacity: 1;
-}
-
-.footer-form {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-
-.footer-form input {
-  flex: 1;
-  min-width: 117px;
-  background: rgba(5, 9, 21, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  padding: 0.325rem 0.65rem;
-  color: var(--text-primary);
-}
-
-.footer-form button {
-  background: linear-gradient(135deg, #14b8a6, #3b82f6);
-  border: none;
-  border-radius: 999px;
-  padding: 0.325rem 0.78rem;
-  color: #fff;
-  font-weight: 600;
+.subscribe-message.error {
+  color: #fecaca;
 }
 
 .footer-bottom {

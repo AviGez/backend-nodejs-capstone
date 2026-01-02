@@ -36,6 +36,15 @@ router.get('/', async (req, res, next) => {
         if (req.query.condition) {
             query.condition = req.query.condition;
         }
+        // תמיכה במסנן מחיר: 'free' (חינם) או price_max (מספר)
+        if (req.query.price === 'free') {
+            query.$or = [{ price: 0 }, { price: { $exists: false } }];
+        } else if (req.query.price_max) {
+            const max = parseFloat(req.query.price_max);
+            if (!isNaN(max)) {
+                query.price = { $lte: max };
+            }
+        }
         if (req.query.age_years) {
             query.age_years = { $lte: parseInt(req.query.age_years) };
         }

@@ -25,11 +25,14 @@ function MainPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
     const [selectedCondition, setSelectedCondition] = useState('');
+    const [selectedPrice, setSelectedPrice] = useState('');
     const [ageRange, setAgeRange] = useState(6);
     const [searchCity, setSearchCity] = useState('');
     const [searchArea, setSearchArea] = useState('');
     const [searchLoading, setSearchLoading] = useState(false);
     const [searchError, setSearchError] = useState('');
+    const [reservedItems, setReservedItems] = useState(new Set());
+    const [showSearchModal, setShowSearchModal] = useState(false);
     const navigate = useNavigate();
     const { isLoggedIn } = useAppContext();
     const searchSectionRef = useRef(null);
@@ -50,7 +53,7 @@ function MainPage() {
         } catch (error) {
             setErrorMessage(error.message);
         }
-    }, [filterAvailableItems]);
+    }, []);
 
     useEffect(() => {
         fetchItems();
@@ -64,6 +67,10 @@ function MainPage() {
             if (searchQuery.trim()) params.append('name', searchQuery.trim());
             if (selectedCategory) params.append('category', selectedCategory);
             if (selectedCondition) params.append('condition', selectedCondition);
+            if (selectedPrice) {
+                if (selectedPrice === 'free') params.append('price', 'free');
+                else params.append('price_max', selectedPrice);
+            }
             if (searchCity.trim()) params.append('city', searchCity.trim());
             if (searchArea.trim()) params.append('area', searchArea.trim());
 
@@ -74,6 +81,7 @@ function MainPage() {
             const data = await response.json();
             setItems(filterAvailableItems(data));
             setSearchError('');
+            setShowSearchModal(false); // Close modal after successful search
         } catch (error) {
             setSearchError(error.message || 'Unable to search items right now.');
         } finally {
@@ -85,14 +93,16 @@ function MainPage() {
         setSearchQuery('');
         setSelectedCategory('');
         setSelectedCondition('');
+        setSelectedPrice('');
         setSearchCity('');
         setSearchArea('');
         setSearchError('');
         fetchItems();
+        setShowSearchModal(false); // Close modal after reset
     };
 
     const scrollToSearch = () => {
-        searchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setShowSearchModal(true);
     };
 
     const goToDetailsPage = (itemId) => {
@@ -125,8 +135,9 @@ function MainPage() {
 
             const updatedItem = await response.json();
             setItems((prevItems) =>
-                filterAvailableItems(prevItems.map((item) => (item.id === updatedItem.id ? updatedItem : item)))
+                prevItems.map((item) => (item.id === updatedItem.id ? updatedItem : item))
             );
+            setReservedItems((prev) => new Set([...prev, itemId]));
             setStatusMessage(`Reserved ${updatedItem.name} until ${new Date(updatedItem.reservedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
             setErrorMessage('');
             setTimeout(() => setStatusMessage(''), 4000);
@@ -154,19 +165,11 @@ function MainPage() {
 // רינדור סטטוס פריט
     const renderStatus = (item) => {
         const status = item.status || 'available';
-        if (status === 'reserved') {
-            const reservedUntil = item.reservedUntil ? new Date(item.reservedUntil) : null;
-            return (
-                <div className="d-flex flex-column">
-                    <span className="badge bg-warning text-dark mb-2">Reserved</span>
-                    {reservedUntil && (
-                        <small className="text-muted">Reserved until {reservedUntil.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small>
-                    )}
-                </div>
-            );
-        }
         if (status === 'sold') {
             return <span className="badge bg-secondary">Sold</span>;
+        }
+        if (status === 'reserved') {
+            return <span className="badge bg-warning text-dark">Reserved</span>;
         }
         return <span className="badge bg-success">Available</span>;
     };
@@ -187,15 +190,19 @@ function MainPage() {
                 <h1>Give every item a second chance.</h1>
                 <p>
                     Discover curated second-hand pieces with transparent histories, condition tags, and now real-time reservations.
-                    Rate what you love, keep track of your finds, and help great items find new homes.
+                    Keep track of your finds, and help great items find new homes.
                 </p>
                 <div className="hero-actions">
                     <button className="btn-primary-modern" onClick={handleAddItem}>Post an Item</button>
-                    <button className="btn-ghost-modern" onClick={scrollToSearch}>Advanced search</button>
+                    <button className="btn-secondary-modern" onClick={scrollToSearch}>Advanced search</button>
                 </div>
             </div>
             <NewArrivalsCarousel />
-            <section className="search-panel glass-panel mb-4" ref={searchSectionRef}>
+            {showSearchModal && (
+                <div className="search-modal-overlay" onClick={() => setShowSearchModal(false)}>
+                    <div className="search-modal-content" onClick={(e) => e.stopPropagation()}>
+                        <button className="search-modal-close" onClick={() => setShowSearchModal(false)}>×</button>
+            <section className="search-panel glass-panel mb-0" ref={searchSectionRef}>
                 <div className="search-panel-header">
                     <div>
                         <h2 className="mb-1">Find exactly what you need</h2>
@@ -261,6 +268,19 @@ function MainPage() {
                         </select>
                     </div>
                     <div className="form-group">
+                        <label htmlFor="priceSelect">Price</label>
+                        <select
+                            id="priceSelect"
+                            value={selectedPrice}
+                            onChange={(e) => setSelectedPrice(e.target.value)}
+                        >
+                            <option value="">Any</option>
+                            <option value="free">Free</option>
+                            <option value="50">Up to $50</option>
+                            <option value="100">Up to $100</option>
+                        </select>
+                    </div>
+                    <div className="form-group">
                         <label htmlFor="searchCity">City</label>
                         <input
                             id="searchCity"
@@ -282,6 +302,9 @@ function MainPage() {
                     </div>
                 </div>
             </section>
+                    </div>
+                </div>
+            )}
             <div className="recommendation-section">
                 <div className="recommendation-header">
                     <h2>Featured picks</h2>
@@ -340,7 +363,9 @@ function MainPage() {
                                     </small>
                                 )}
                                 {(item.status) === 'reserved' && (
-                                    <small className="text-muted">Reserved until {item.reservedUntil ? new Date(item.reservedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</small>
+                                    <div className="alert alert-success mb-0 py-2 text-center fw-bold" style={{fontSize: '0.9rem'}}>
+                                        Reserved until {item.reservedUntil ? new Date(item.reservedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                    </div>
                                 )}
                                 {item.mapUrl && (
                                     <a href={item.mapUrl} target="_blank" rel="noopener noreferrer" className="btn btn-link w-100">

@@ -141,6 +141,11 @@
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.form-group select option {
+  background: #1a1a2e;
+  color: #fff;
+}
+
 .form-group input::placeholder,
 .form-group textarea::placeholder {
   color: rgba(255, 255, 255, 0.55);

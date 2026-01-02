@@ -56,12 +56,7 @@ function ItemPage() {
     const [message, setMessage] = useState(null);
     const [selectedImages, setSelectedImages] = useState([]);
     const [imageTip, setImageTip] = useState('Upload at least 2 clear photos to boost trust.');
-    const [enableShipping, setEnableShipping] = useState(false);
-    const [pickupAddress, setPickupAddress] = useState('');
-    const [pickupCity, setPickupCity] = useState('');
-    const [pickupArea, setPickupArea] = useState('');
-    const [shippingBasePrice, setShippingBasePrice] = useState(10);
-    const [shippingPricePerKm, setShippingPricePerKm] = useState(2);
+    // shipping/delivery removed from Add Item
     const { isLoggedIn } = useAppContext();
 
     useEffect(() => {
@@ -132,12 +127,7 @@ function ItemPage() {
       formData.append('area', area);
       formData.append('mapUrl', '');
       formData.append('price', price);
-      formData.append('enableShipping', enableShipping);
-      formData.append('pickupAddress', pickupAddress);
-      formData.append('pickupCity', pickupCity);
-      formData.append('pickupArea', pickupArea);
-      formData.append('shippingBasePrice', shippingBasePrice);
-      formData.append('shippingPricePerKm', shippingPricePerKm);
+      // shipping fields removed
 
           try {
             let url = `${urlConfig.backendUrl}/api/secondchance/items`;
@@ -266,81 +256,7 @@ function ItemPage() {
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </div>
-              <div className="form-group form-full">
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={enableShipping}
-                    onChange={(e) => setEnableShipping(e.target.checked)}
-                    style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                  />
-                  <span>Enable shipping (delivery available)</span>
-                </label>
-              </div>
-              {enableShipping && (
-                <>
-                  <div className="form-group form-full">
-                    <label htmlFor="pickupAddress">Pickup Address (Full address)</label>
-                    <input
-                      id="pickupAddress"
-                      type="text"
-                      placeholder="Enter full pickup address"
-                      value={pickupAddress}
-                      onChange={(e) => setPickupAddress(e.target.value)}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="pickupCity">Pickup City</label>
-                    <input
-                      id="pickupCity"
-                      type="text"
-                      list="pickup-city-options"
-                      placeholder="Pickup city"
-                      value={pickupCity}
-                      onChange={(e) => setPickupCity(e.target.value)}
-                    />
-                    <datalist id="pickup-city-options">
-                      {cityOptions.map((option) => (
-                        <option key={option} value={option} />
-                      ))}
-                    </datalist>
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="pickupArea">Pickup Area / Neighborhood</label>
-                    <input
-                      id="pickupArea"
-                      type="text"
-                      placeholder="Pickup area"
-                      value={pickupArea}
-                      onChange={(e) => setPickupArea(e.target.value)}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="shippingBasePrice">Base Shipping Price ($)</label>
-                    <input
-                      id="shippingBasePrice"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="Base price"
-                      value={shippingBasePrice}
-                      onChange={(e) => setShippingBasePrice(e.target.value)}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="shippingPricePerKm">Price Per Kilometer ($)</label>
-                    <input
-                      id="shippingPricePerKm"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="Price per km"
-                      value={shippingPricePerKm}
-                      onChange={(e) => setShippingPricePerKm(e.target.value)}
-                    />
-                  </div>
-                </>
-              )}
+              {/* shipping/delivery options removed */}
             </div>
           </div>
           <div className="form-column form-column-secondary">

@@ -157,45 +157,7 @@ const notificationService = {
 
         await notificationsCollection.insertMany(docs);
     },
-// התראה על פריט חדש בקטגוריה המועדפת על המשתמש
-    async notifyNewItemInCategory({ category, itemId, itemName }) {
-        const db = await connectToDatabase();
-        const prefsCollection = db.collection('notificationPreferences');
 
-        const interestedUsers = await prefsCollection.find({ categories: category }).toArray();
-        const userIds = interestedUsers.map((pref) => pref.userId);
-
-        if (userIds.length === 0) {
-            return;
-        }
-
-        await this.createNotification({
-            userIds,
-            type: NOTIFICATION_TYPES.NEW_ITEM_CATEGORY,
-            title: 'New item in your favorite category',
-            message: `${itemName} was just posted in ${category}.`,
-            context: { itemId },
-        });
-    },
-// התראה למנהלים על פריט חדש שממתין לאישור
-    async notifyAdminsNewItem({ itemId, itemName }) {
-        const db = await connectToDatabase();
-        const usersCollection = db.collection('users');
-
-        const admins = await usersCollection.find({ role: 'admin' }).toArray();
-        const userIds = admins.map((admin) => admin._id.toString());
-        if (userIds.length === 0) {
-            return;
-        }
-
-        await this.createNotification({
-            userIds,
-            type: NOTIFICATION_TYPES.NEW_ITEM_ADMIN,
-            title: 'New item pending review',
-            message: `${itemName} is awaiting your review.`,
-            context: { itemId },
-        });
-    },
 // התראה על משוב חדש שהתקבל
     async notifyFeedback({ userId, fromUserName, itemName, feedbackId }) {
         await this.createNotification({
@@ -242,19 +204,7 @@ const notificationService = {
             context: { itemId, buyerId },
         });
     },
-// התראה על פריט שעומד לצאת מהקרוסלה
-    async notifyCarouselExitSoon({ sellerId, itemId, itemName, daysLeft }) {
-        if (!sellerId) {
-            return;
-        }
-        await this.createNotification({
-            userIds: [sellerId],
-            type: NOTIFICATION_TYPES.CAROUSEL_EXIT_SOON,
-            title: 'Your item is leaving the carousel soon',
-            message: `${itemName || 'One of your items'} will rotate out of the featured carousel in ${daysLeft} days.`,
-            context: { itemId },
-        });
-    },
+
 // התראה על קונה שהחמיץ איסוף מספר פעמים
     async notifyAdminsBuyerNoShow({ buyerId, buyerName, email, count }) {
         const db = await connectToDatabase();

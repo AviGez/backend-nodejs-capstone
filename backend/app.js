@@ -36,7 +36,9 @@ const secondChanceRoutes = require('./routes/secondChanceItemsRoutes');
 const authRoutes = require('./routes/authRoutes');
 const searchRoutes = require('./routes/searchRoutes');
 const { notificationsRouter } = require('./routes/notificationsRoutes');
+const { adminUsersRouter } = require('./routes/adminUsersRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 const pinoHttp = require('pino-http');
 const logger = require('./logger');
 
@@ -50,7 +52,9 @@ app.use('/api/secondchance/items', secondChanceRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/secondchance/search', searchRoutes);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/admin/users', adminUsersRouter);
 app.use('/api/chats', chatRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Global Error Handler
 // טיפול גלובלי בשגיאות: מחזיר 500 במקרה של שגיאה לא מטופלת

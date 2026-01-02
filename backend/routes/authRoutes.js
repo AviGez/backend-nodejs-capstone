@@ -141,6 +141,8 @@ router.put('/update', authenticate, async (req, res) => {
     try {
         // דואג שקיים אימייל במשתמש המאומת
         const email = req.user?.email;
+        
+        logger.info(`Update request for user: ${email}, req.user:`, req.user);
 
         if (!email) {
             logger.error('Email not found for the authenticated user');
@@ -153,9 +155,11 @@ router.put('/update', authenticate, async (req, res) => {
 
         // מציאת פרטי המשתמש
         const existingUser = await collection.findOne({ email });
+        
+        logger.info(`Looking for user with email: ${email}, found:`, existingUser ? 'yes' : 'no');
 
         if (!existingUser) {
-            logger.error('User not found');
+            logger.error('User not found in database');
             return res.status(404).json({ error: "User not found" });
         }
 
@@ -188,7 +192,7 @@ router.put('/update', authenticate, async (req, res) => {
 
         res.json({ authtoken, role: payload.user.role });
     } catch (error) {
-        logger.error(error);
+        logger.error('Error in update route:', error);
         return res.status(500).send("Internal Server Error");
     }
 });
