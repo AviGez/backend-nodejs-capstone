@@ -1,9 +1,3 @@
-# Second‑Hand Store - פרויקט SecondChance
-
-תמצית
--------
-זהו פרויקט של חנות יד שנייה (SecondChance) הכולל שירות backend (Node/Express + MongoDB) ו‑frontend (React). הקוד כולל ניהול פריטים, העלאת תמונות, מערכת שיחות (chat) עם Socket.IO, וניהול הודעות/התרעות.
-
 # Second‑Hand Store — תיעוד מפורט
 
 תמצית
@@ -145,4 +139,4 @@ Dockerfiles
 ראה קובץ `LICENSE` במאגר.
 
 ---
-אם תרצה, אוכל להרחיב כל קטע (דוגמאות env מלאות, דוקומנטציה של ה‑API, דיאגרמת ארכיטקטורה או הוראות לפריסה בענן). תודה!
+
