@@ -131,30 +131,49 @@ function ItemPage() {
 
           try {
             let url = `${urlConfig.backendUrl}/api/secondchance/items`;
-            console.log(url);
+            console.log('Uploading to:', url);
+            console.log('Images count:', selectedImages.length);
+            
               const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${authToken}`
+                  // Note: Don't set Content-Type - browser sets it automatically for FormData
                 },
                 body: formData
             });
     
+              console.log('Response status:', response.status);
+              
               if (!response.ok) {
-                  throw new Error('Network response was not ok');
+                  const errorText = await response.text();
+                  console.error('Error response:', errorText);
+                  let errorMessage = `Failed to upload item (${response.status})`;
+                  try {
+                      const errorJson = JSON.parse(errorText);
+                      errorMessage = errorJson.error || errorMessage;
+                  } catch (e) {
+                      errorMessage = errorText || errorMessage;
+                  }
+                  throw new Error(errorMessage);
               }
+              
               const data = await response.json();
+              console.log('Item created successfully:', data);
+              
               if (data) {
-                setMessage("Item added!");
+                setMessage("Item added successfully!");
                 setSelectedImages([]);
                 setImageTip('Upload at least 2 clear photos to boost trust.');
                 setTimeout(() => {
                     setMessage("");
-                    navigate("/");
-                }, 500);
+                    navigate("/app");
+                }, 1000);
               }
           } catch (error) {
-            setMessage(error.message);
+            console.error('Upload error:', error);
+            setMessage(`Error: ${error.message}`);
+            setTimeout(() => setMessage(null), 5000);
           }
   }
 

@@ -222,6 +222,23 @@ const notificationService = {
             context: { buyerId, email, misses: count },
         });
     },
+// התראה למנהלים על פריט חדש שנוסף
+    async notifyAdminsNewItem({ itemId, itemName }) {
+        const db = await connectToDatabase();
+        const usersCollection = db.collection('users');
+        const admins = await usersCollection.find({ role: 'admin' }).toArray();
+        const userIds = admins.map((admin) => admin._id.toString());
+        if (userIds.length === 0) {
+            return;
+        }
+        await this.createNotification({
+            userIds,
+            type: NOTIFICATION_TYPES.NEW_ITEM_ADMIN,
+            title: 'New item submitted',
+            message: `A new item "${itemName || itemId}" has been submitted and needs approval.`,
+            context: { itemId },
+        });
+    },
     // התראה על קבלת תגמול (badge)
     // משמשת להודיע למשתמש על קבלת תגמול חדש
     // לדוגמה: badge על פעילות, הישגים וכו'

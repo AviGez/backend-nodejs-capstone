@@ -59,8 +59,13 @@ app.use('/api/payments', paymentRoutes);
 // Global Error Handler
 // טיפול גלובלי בשגיאות: מחזיר 500 במקרה של שגיאה לא מטופלת
 app.use((err, req, res, next) => {
-    console.error(err);
-    res.status(500).send('Internal Server Error');
+    logger.error('Error:', err);
+    console.error('Error details:', err);
+    console.error('Error stack:', err.stack);
+    res.status(500).json({ 
+        error: err.message || 'Internal Server Error',
+        details: process.env.NODE_ENV !== 'production' ? err.stack : undefined
+    });
 });
 
 app.get("/",(req,res)=>{

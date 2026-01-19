@@ -1,0 +1,79 @@
+version: "3.9"
+
+# Production Docker Compose Configuration
+# Usage: docker compose -f docker-compose.prod.yml up -d
+
+services:
+  mongo:
+    image: mongo:6
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-CHANGE_THIS_PASSWORD}
+    volumes:
+      - mongo_data:/data/db
+    # Don't expose MongoDB port publicly in production
+    # Only accessible from backend container
+    networks:
+      - app-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3060
+      MONGO_URL: mongodb://root:${MONGO_ROOT_PASSWORD:-CHANGE_THIS_PASSWORD}@mongo:27017/secondChance?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_THIS_SECRET_MIN_32_CHARS}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-https://yourdomain.com}
+      SOCKET_ORIGIN: ${SOCKET_ORIGIN:-https://yourdomain.com}
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_SECRET: ${PAYPAL_SECRET:-}
+    ports:
+      - "3060:3060"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3060/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL:-https://api.yourdomain.com}
+    depends_on:
+      - backend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  mongo_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
+
